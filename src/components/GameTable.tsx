@@ -1,142 +1,125 @@
-import { Room, Player, Card } from "@/types/game";
+import { Room, Player } from "@/types/game";
 import { getCardDisplayName } from "@/utils/gameUtils";
+import Image from "next/image";
 
 interface GameTableProps {
   room: Room;
-  onSeatClick: (seat: number) => void;
-  onPlayCard: (card: Card) => void;
-  currentPlayerId: string;
+  dealerSeat?: number;
+  currentPlayerId?: string;
+  onSeatClick?: (seat: number) => void;
 }
 
-const Seat = ({
-  player,
-  seatNumber,
-  onSeatClick,
-  isCurrentPlayer,
-  isActivePlayer,
-  position,
-}: {
-  player: Player | undefined;
-  seatNumber: number;
-  onSeatClick: (seat: number) => void;
-  isCurrentPlayer: boolean;
-  isActivePlayer: boolean;
-  position: string;
-}) => {
-  const hasPlayer = !!player;
+const seatPositions = [
+  { name: "bottom", style: "absolute left-1/2 bottom-0 -translate-x-1/2" },
+  { name: "left", style: "absolute left-0 top-1/2 -translate-y-1/2" },
+  { name: "top", style: "absolute left-1/2 top-0 -translate-x-1/2" },
+  { name: "right", style: "absolute right-0 top-1/2 -translate-y-1/2" },
+];
 
-  return (
-    <div className={`absolute ${position}`}>
-      <div
-        className={`w-24 h-24 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 transform hover:scale-110 ${
-          isCurrentPlayer
-            ? "bg-blue-500 border-4 border-blue-300"
-            : hasPlayer
-            ? "bg-gray-600 border-4 border-gray-400"
-            : "bg-gray-200 hover:bg-gray-300"
-        } ${isActivePlayer ? "ring-4 ring-yellow-400 shadow-lg" : ""}`}
-        onClick={() => !hasPlayer && onSeatClick(seatNumber)}
-      >
-        {hasPlayer ? (
-          <div className="text-white font-bold text-center">
-            <p className="truncate">{player.name}</p>
-            <p>({player.hand.length} cards)</p>
-          </div>
-        ) : (
-          <span className="text-sm text-gray-600">Seat {seatNumber}</span>
-        )}
-      </div>
-    </div>
-  );
-};
+// Helper to get player by seat
+const getPlayerAtSeat = (room: Room, seat: number) =>
+  room.players.find((p) => p.seat === seat);
 
 export default function GameTable({
   room,
-  onSeatClick,
-  onPlayCard,
+  dealerSeat,
   currentPlayerId,
+  onSeatClick,
 }: GameTableProps) {
-  const getPlayerAtSeat = (seat: number) =>
-    room.players.find((p) => p.seat === seat);
+  const isDealing = room.gameState.dealing;
 
+  // Find the local player's seat
   const currentPlayer = room.players.find((p) => p.id === currentPlayerId);
-  const currentPlayerSeat = currentPlayer?.seat;
+  const mySeat = currentPlayer?.seat || 1;
 
-  const seatPositions: { [key: string]: string } = {
-    bottom: "bottom-0 left-1/2 -translate-x-1/2",
-    left: "top-1/2 left-0 -translate-y-1/2",
-    top: "top-0 left-1/2 -translate-x-1/2",
-    right: "top-1/2 right-0 -translate-y-1/2",
-  };
-
-  const renderSeats = () => {
-    if (!currentPlayerSeat) {
-      // Render a simple grid if the current player isn't seated yet
-      return [1, 2, 3, 4].map((seatNumber) => (
-        <div key={seatNumber} className="flex items-center justify-center">
-          <Seat
-            player={getPlayerAtSeat(seatNumber)}
-            seatNumber={seatNumber}
-            onSeatClick={onSeatClick}
-            isCurrentPlayer={false}
-            isActivePlayer={room.currentPlayer === seatNumber}
-            position="" // Position will be handled by grid
-          />
-        </div>
-      ));
-    }
-
-    const seatOrder = ["bottom", "left", "top", "right"];
-    const seatNumbers = [
-      currentPlayerSeat,
-      ((currentPlayerSeat + 0) % 4) + 1, // Left player
-      ((currentPlayerSeat + 1) % 4) + 1, // Top player
-      ((currentPlayerSeat + 2) % 4) + 1, // Right player
-    ];
-
-    return seatOrder.map((position, index) => {
-      const seatNumber = seatNumbers[index];
-      const player = getPlayerAtSeat(seatNumber);
-      return (
-        <Seat
-          key={seatNumber}
-          player={player}
-          seatNumber={seatNumber}
-          onSeatClick={onSeatClick}
-          isCurrentPlayer={player?.id === currentPlayerId}
-          isActivePlayer={room.currentPlayer === seatNumber}
-          position={seatPositions[position]}
-        />
-      );
-    });
-  };
-
-  const mainContent =
-    currentPlayerSeat !== undefined ? (
-      <div className="w-full h-full relative">{renderSeats()}</div>
-    ) : (
-      <div className="grid grid-cols-2 grid-rows-2 gap-4 w-full h-full">
-        {renderSeats()}
-      </div>
-    );
+  // Rotate seat order so local player is always at the bottom
+  const seatOrder = [0, 1, 2, 3].map((i) => ((mySeat - 1 + i) % 4) + 1);
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-green-700 rounded-full aspect-square relative flex items-center justify-center p-8 shadow-2xl border-8 border-yellow-800">
-      {mainContent}
-      <div className="absolute w-56 h-40 bg-green-800/70 rounded-lg flex items-center justify-center p-2 shadow-inner">
-        <div className="grid grid-cols-2 gap-2">
-          {room.currentTrick.map(({ card, seat }) => (
-            <div
-              key={`${card.id}-${seat}`}
-              className="relative flex flex-col items-center"
-            >
-              <div className="w-12 h-16 bg-white rounded text-sm flex items-center justify-center font-bold text-black shadow-md">
-                {getCardDisplayName(card)}
-              </div>
-              <span className="text-white text-xs mt-1">Seat {seat}</span>
-            </div>
-          ))}
+    <div className="w-full max-w-3xl mx-auto bg-green-800 rounded-2xl aspect-[2/1] relative flex items-center justify-center p-8 shadow-2xl border-8 border-yellow-800">
+      {/* Dealer & Deck */}
+      {isDealing && (
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
+          <Image
+            src="/cards/back.png"
+            alt="Deck"
+            width={64}
+            height={90}
+            className="drop-shadow-lg animate-bounce"
+          />
+          {dealerSeat && (
+            <span className="mt-2 text-yellow-300 font-bold text-sm bg-black/60 px-2 py-1 rounded">
+              Dealer: Seat {dealerSeat}
+            </span>
+          )}
         </div>
+      )}
+
+      {/* Seats and player info (no tiles below table) */}
+      {seatOrder.map((seat, idx) => {
+        const player = room.players.find((p) => p.seat === seat);
+        const isCurrent = player?.id === currentPlayerId;
+        return (
+          <div
+            key={seat}
+            className={
+              seatPositions[idx].style +
+              " z-10 flex flex-col items-center select-none"
+            }
+            onClick={() => onSeatClick && !player && onSeatClick(seat)}
+          >
+            {/* Seat circle */}
+            <div
+              className={
+                "w-16 h-16 rounded-full flex items-center justify-center border-4 transition-all duration-200 " +
+                (isCurrent
+                  ? "border-blue-400 bg-blue-900/80 shadow-lg"
+                  : player
+                  ? "border-yellow-400 bg-yellow-900/80 shadow"
+                  : "border-gray-500 bg-gray-800/60 opacity-60")
+              }
+            >
+              {player ? (
+                <div className="flex flex-col items-center text-center">
+                  <span className="text-base font-bold truncate text-white max-w-[3.5rem]">
+                    {player.name}
+                  </span>
+                  <span className="text-xs text-yellow-200 font-normal">
+                    {player.hand.length} cards
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm text-gray-300">Seat {seat}</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Trick cards in center (play area) */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
+        <div className="w-48 h-32 flex items-center justify-center relative border-2 border-dashed border-yellow-400 rounded-xl bg-green-900/40">
+          <div className="flex flex-row gap-8 items-center justify-center">
+            {room.currentTrick.map(({ card, seat }, idx) => (
+              <div
+                key={`${card.id}-${seat}-${idx}`}
+                className="relative flex flex-col items-center animate-fade-in"
+              >
+                <Image
+                  src={`/cards/${card.rank}${card.suit[0].toUpperCase()}.png`}
+                  alt={getCardDisplayName(card)}
+                  width={48}
+                  height={72}
+                  className="rounded shadow-lg"
+                />
+                <span className="text-white text-xs mt-1">Seat {seat}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <span className="mt-2 text-yellow-200 text-xs tracking-wider">
+          Play Area
+        </span>
       </div>
     </div>
   );

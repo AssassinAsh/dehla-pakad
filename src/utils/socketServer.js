@@ -222,21 +222,37 @@ export default function setupSocketIO(server) {
           room.players.length === 4 &&
           !room.gameStarted
         ) {
+          // Set dealer and dealing state
+          RoomManager.setDealer(roomId, room.currentPlayer || 1);
+          RoomManager.setDealing(roomId, true);
+
           const deck = createDeck();
 
-          // Deal initial 5 cards
-          room.players.forEach((player) => {
-            player.hand = deck.splice(0, 5);
-          });
-
-          room.gameStarted = true;
-          room.gameState.status = "in-progress";
-          room.currentPlayer = room.players[0].seat; // Start with seat 1
-          room.deck = deck; // Store remaining deck
-
-          RoomManager.updateRoom(roomId, room);
-          io.to(roomId).emit("gameStarted", room);
-          io.to(roomId).emit("roomUpdated", room);
+          // Animate dealing: deal cards one by one with delay
+          let dealIndex = 0;
+          const dealCards = () => {
+            if (dealIndex < 5) {
+              room.players.forEach((player) => {
+                player.hand.push(deck.shift());
+              });
+              RoomManager.updateRoom(roomId, room);
+              io.to(roomId).emit("roomUpdated", room);
+              dealIndex++;
+              setTimeout(dealCards, 300); // 300ms per card
+            } else {
+              // Finish dealing
+              room.gameStarted = true;
+              room.gameState.status = "in-progress";
+              room.currentPlayer = room.players[0].seat; // Start with seat 1
+              room.deck = deck; // Store remaining deck
+              RoomManager.setDealing(roomId, false);
+              RoomManager.updateRoom(roomId, room);
+              io.to(roomId).emit("gameStarted", room);
+              io.to(roomId).emit("roomUpdated", room);
+            }
+          };
+          // Start dealing animation
+          dealCards();
         } else {
           socket.emit("error", "Cannot start game.");
         }

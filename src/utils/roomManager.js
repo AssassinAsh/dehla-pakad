@@ -11,12 +11,16 @@ export class RoomManager {
         currentRound: 0,
         scores: {},
         remainingDeck: [],
+        dealing: false,
       },
       currentTrick: [],
       currentPlayer: 1,
       tricks: [],
       gameStarted: false,
       createdAt: new Date(),
+      // Add new properties
+      dealerSeat: 1,
+      deck: [],
     };
 
     rooms.set(roomId, room);
@@ -103,5 +107,21 @@ export class RoomManager {
       gameStarted: room.gameStarted,
       createdAt: room.createdAt,
     }));
+  }
+
+  static setDealer(roomId, seat) {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.dealerSeat = seat;
+      rooms.set(roomId, room);
+    }
+  }
+
+  static setDealing(roomId, dealing) {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.gameState.dealing = dealing;
+      rooms.set(roomId, room);
+    }
   }
 }

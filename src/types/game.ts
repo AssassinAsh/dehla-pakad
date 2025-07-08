@@ -42,6 +42,8 @@ export interface Room {
   tricks: Trick[];
   gameStarted: boolean;
   createdAt: Date;
+  dealerSeat?: number;
+  deck?: Card[];
 }
 
 export interface Trick {
@@ -59,6 +61,7 @@ export interface GameState {
   leadSeat?: number;
   lastTrickWinner?: number;
   consecutiveWins?: number;
+  dealing?: boolean;
 }
 
 export interface RoomSummary {

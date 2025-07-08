@@ -7,6 +7,7 @@ import { Room, Player, Card, Trick } from "@/types/game";
 import GameTable from "@/components/GameTable";
 import RulesModal from "@/components/RulesModal"; // Import the modal
 import CardComponent from "@/components/Card"; // Renamed to avoid conflict
+import "@/styles/animations.css";
 
 export default function RoomPage() {
   const router = useRouter();
@@ -154,6 +155,13 @@ export default function RoomPage() {
     }
   };
 
+  // Helper: is it this player's turn?
+  const isMyTurn = currentPlayer && room.currentPlayer === currentPlayer.seat;
+
+  // Helper: can play this card? (basic: must be your turn and card in hand)
+  const canPlayCard = (card: Card) =>
+    isMyTurn && currentPlayer?.hand.some((c) => c.id === card.id);
+
   // If room data isn't loaded yet
   if (!room) {
     return (
@@ -199,7 +207,7 @@ export default function RoomPage() {
 
   return (
     <>
-      <div className="min-h-screen p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white">
+      <div className="min-h-screen p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white pb-40">
         <div className="max-w-7xl mx-auto space-y-4">
           {/* Header */}
           <header className="flex justify-between items-center p-4 rounded-lg bg-black/30">
@@ -242,113 +250,106 @@ export default function RoomPage() {
             </button>
           </header>
 
-          {/* Table & Trump */}
+          {/* Table */}
           <GameTable
             room={room}
+            dealerSeat={room.dealerSeat}
+            currentPlayerId={currentPlayer?.id}
             onSeatClick={joinSeat}
-            onPlayCard={playCard}
-            currentPlayerId={currentPlayer?.id || ""}
           />
-          {room.gameState.trump && (
-            <div className="text-center">
-              <span className="font-semibold">Trump: </span>
-              <span
-                className={
-                  room.gameState.trump === "hearts" ||
-                  room.gameState.trump === "diamonds"
-                    ? "text-red-600"
-                    : ""
-                }
+
+          {/* Start Game Button */}
+          {!room.gameStarted && room.players.length === 4 && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={startGame}
+                className="bg-yellow-500 text-gray-900 font-bold py-3 px-8 rounded-lg hover:bg-yellow-400 transition-transform transform hover:scale-105 shadow-lg text-xl"
               >
-                {
-                  {
-                    hearts: "♥",
-                    diamonds: "♦",
-                    clubs: "♣",
-                    spades: "♠",
-                  }[room.gameState.trump]
-                }
-              </span>
+                Start Game / Deal Cards
+              </button>
             </div>
           )}
 
-          {/* Scores */}
-          <section className="grid grid-cols-4 gap-4">
-            {room.players
-              .slice()
-              .sort((a, b) => a.seat - b.seat)
-              .map((p) => (
-                <div
-                  key={p.seat}
-                  className="bg-white p-4 rounded shadow text-center"
-                >
-                  <div className="font-semibold">Seat {p.seat}</div>
-                  <div>{p.name}</div>
-                  <div className="mt-2 text-xl text-blue-600">
-                    {room.gameState.scores[p.seat] || 0}✦
-                  </div>
-                </div>
-              ))}
-          </section>
-
-          {/* Player Hand & Controls */}
-          {currentPlayer && (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold">Your Hand</h2>
-                <div className="flex justify-center items-center overflow-x-auto py-2 space-x-[-2rem]">
-                  {currentPlayer.hand.map((card) => (
-                    <div key={card.id} className="flex-shrink-0">
-                      <CardComponent
-                        card={card}
-                        size="medium"
-                        onClick={() => playCard(card)}
-                      />
+          {/* Scores as small overlay instead of white tiles */}
+          <div className="mt-2 bg-gray-900/80 p-2 rounded-lg text-center mx-auto max-w-md">
+            <div className="text-yellow-300 text-sm">Current Scores:</div>
+            <div className="flex justify-center gap-4 mt-1">
+              {room.players
+                .slice()
+                .sort((a, b) => a.seat - b.seat)
+                .map((p) => (
+                  <div key={p.seat} className="text-center">
+                    <div className="text-white text-xs">
+                      Seat {p.seat}: {p.name}
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <div>You are: {currentPlayer.name}</div>
-                {room.gameStarted && <div>Turn: {room.currentPlayer}</div>}
-                {!room.gameStarted && room.players.length === 4 && (
-                  <button
-                    onClick={startGame}
-                    className="bg-green-500 text-white px-4 py-2 rounded"
-                  >
-                    Start
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Game Over */}
-          {gameFinishedData && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="bg-white p-6 rounded shadow-lg text-center space-y-4">
-                <h2 className="text-2xl font-bold">Game Over</h2>
-                {gameFinishedData.kot !== null && (
-                  <p className="text-red-600">
-                    Kot! Seat {gameFinishedData.kot}
-                  </p>
-                )}
-                {Object.entries(gameFinishedData.scores).map(([s, sc]) => (
-                  <div key={s} className="flex justify-between">
-                    <span>Seat {s}</span>
-                    <span>{sc}✦</span>
+                    <div className="font-bold text-yellow-400">
+                      {room.gameState.scores[p.seat] || 0}✦
+                    </div>
                   </div>
                 ))}
-                <button
-                  onClick={() => setGameFinishedData(null)}
-                  className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
-                >
-                  Close
-                </button>
-              </div>
             </div>
-          )}
+          </div>
         </div>
+
+        {/* Player Hand (always at bottom, floating) */}
+        {currentPlayer && (
+          <div className="fixed left-0 right-0 bottom-0 z-40 flex flex-col items-center pb-4 pointer-events-none">
+            <div className="mb-2 text-lg font-semibold text-yellow-200">
+              Your Hand
+            </div>
+            <div className="flex gap-2 justify-center items-end pointer-events-auto">
+              {currentPlayer.hand.map((card, idx) => (
+                <div
+                  key={card.id}
+                  style={{
+                    animation: room.gameState.dealing
+                      ? `fadeInUp 0.5s ${(idx + 1) * 0.15}s both`
+                      : undefined,
+                  }}
+                  className={`transition-transform duration-200 relative ${
+                    canPlayCard(card)
+                      ? "cursor-pointer hover:-translate-y-4 hover:scale-110 shadow-xl border-2 border-yellow-400 animate-pulse"
+                      : "opacity-60 cursor-not-allowed"
+                  }`}
+                  onClick={() => canPlayCard(card) && playCard(card)}
+                >
+                  <CardComponent card={card} size="large" />
+                </div>
+              ))}
+            </div>
+            {isMyTurn ? (
+              <div className="mt-2 text-green-400 font-bold animate-bounce">
+                It&apos;s your turn!
+              </div>
+            ) : (
+              <div className="mt-2 text-gray-400">Waiting for your turn...</div>
+            )}
+          </div>
+        )}
+
+        {/* Game Over */}
+        {gameFinishedData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded shadow-lg text-center space-y-4">
+              <h2 className="text-2xl font-bold">Game Over</h2>
+              {gameFinishedData.kot !== null && (
+                <p className="text-red-600">Kot! Seat {gameFinishedData.kot}</p>
+              )}
+              {Object.entries(gameFinishedData.scores).map(([s, sc]) => (
+                <div key={s} className="flex justify-between">
+                  <span>Seat {s}</span>
+                  <span>{sc}✦</span>
+                </div>
+              ))}
+              <button
+                onClick={() => setGameFinishedData(null)}
+                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Rules Modal */}
