@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Room, Player, Card, Trick } from "@/types/game";
 import GameTable from "@/components/GameTable";
 import RulesModal from "@/components/RulesModal"; // Import the modal
 import CardComponent from "@/components/Card"; // Renamed to avoid conflict
 
 export default function RoomPage() {
+  const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
   const params = useParams();
   const searchParams = useSearchParams();
@@ -22,6 +23,20 @@ export default function RoomPage() {
     scores: Record<number, number>;
     kot: number | null;
   } | null>(null);
+
+  // Copy invite link to clipboard
+  const [copied, setCopied] = useState(false);
+  const inviteUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/room/${roomId}`
+      : "";
+  const handleCopy = () => {
+    if (inviteUrl) {
+      navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Initialize Socket.IO client
   useEffect(() => {
@@ -118,6 +133,27 @@ export default function RoomPage() {
     socketRef.current.emit("playCard", room.id, card.id);
   };
 
+  const [showNameModal, setShowNameModal] = useState(!playerName);
+  const [nameInput, setNameInput] = useState("");
+
+  // Show modal for name entry if not present in URL
+  useEffect(() => {
+    if (!playerName) {
+      setShowNameModal(true);
+    } else {
+      setShowNameModal(false);
+    }
+  }, [playerName]);
+
+  const handleNameSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (nameInput.trim()) {
+      router.replace(
+        `/room/${roomId}?name=${encodeURIComponent(nameInput.trim())}`
+      );
+    }
+  };
+
   // If room data isn't loaded yet
   if (!room) {
     return (
@@ -131,6 +167,36 @@ export default function RoomPage() {
   }
 
   // Main game UI
+  if (showNameModal) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
+        <form
+          onSubmit={handleNameSubmit}
+          className="bg-gray-900 p-8 rounded-2xl shadow-2xl border-2 border-yellow-500 flex flex-col items-center w-full max-w-xs"
+        >
+          <h2 className="text-2xl font-bold text-yellow-400 mb-4">
+            Enter Your Name
+          </h2>
+          <input
+            type="text"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="Your name"
+            className="w-full px-4 py-3 mb-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white"
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="w-full bg-yellow-500 text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-yellow-400 transition-transform transform hover:scale-105 shadow-lg"
+            disabled={!nameInput.trim()}
+          >
+            Join Room
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="min-h-screen p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white">
@@ -151,6 +217,22 @@ export default function RoomPage() {
                   {room.gameStarted ? "In Progress" : "Waiting for players..."}
                 </span>
               </p>
+              {/* Invite Link */}
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={inviteUrl}
+                  readOnly
+                  className="bg-gray-700 text-yellow-200 px-2 py-1 rounded w-64 text-xs border border-gray-600 select-all"
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  onClick={handleCopy}
+                  className="bg-yellow-500 text-gray-900 font-bold px-3 py-1 rounded hover:bg-yellow-400 transition-colors text-xs"
+                >
+                  {copied ? "Copied!" : "Copy Link"}
+                </button>
+              </div>
             </div>
             <button
               onClick={() => setIsRulesModalOpen(true)}

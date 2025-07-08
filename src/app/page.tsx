@@ -11,6 +11,7 @@ export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
+  const [joinRoomId, setJoinRoomId] = useState("");
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
 
@@ -100,6 +101,21 @@ export default function Home() {
     );
   };
 
+  const joinRoom = () => {
+    if (!playerName.trim()) {
+      alert("Please enter your name");
+      return;
+    }
+    if (!joinRoomId.trim()) {
+      alert("Please enter a room ID");
+      return;
+    }
+    const roomUrl = `/room/${joinRoomId}?name=${encodeURIComponent(
+      playerName
+    )}`;
+    router.push(roomUrl);
+  };
+
   return (
     <>
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-900 text-white">
@@ -112,25 +128,44 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Room Creation */}
-        <div className="w-full max-w-md bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700">
-          <h2 className="text-2xl font-bold text-center text-yellow-300 mb-6">
-            Join or Create a Room
-          </h2>
-          <div className="space-y-6">
+        {/* Room Creation & Join */}
+        <div className="w-full max-w-md bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700 space-y-8">
+          <div>
+            <h2 className="text-2xl font-bold text-center text-yellow-300 mb-6">
+              Join or Create a Room
+            </h2>
             <input
               type="text"
               placeholder="Enter your name"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 transition mb-4"
             />
             <button
               onClick={createRoom}
               disabled={isCreatingRoom || !playerName.trim()}
-              className="w-full bg-yellow-500 text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-yellow-400 disabled:bg-gray-600 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg"
+              className="w-full bg-yellow-500 text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-yellow-400 disabled:bg-gray-600 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg mb-2"
             >
               {isCreatingRoom ? "Creating Room..." : "Create New Room"}
+            </button>
+          </div>
+          <div className="border-t border-gray-600 pt-6">
+            <h3 className="text-lg font-semibold text-yellow-200 mb-2">
+              Join with Room ID
+            </h3>
+            <input
+              type="text"
+              placeholder="Enter Room ID"
+              value={joinRoomId}
+              onChange={(e) => setJoinRoomId(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 transition mb-2"
+            />
+            <button
+              onClick={joinRoom}
+              disabled={!playerName.trim() || !joinRoomId.trim()}
+              className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-400 disabled:bg-gray-600 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg"
+            >
+              Join Room
             </button>
           </div>
         </div>
@@ -143,49 +178,6 @@ export default function Home() {
           >
             Show Rules
           </button>
-        </div>
-
-        {/* Available Rooms List */}
-        <div className="w-full max-w-md mt-10">
-          <h3 className="text-xl font-semibold text-center mb-4">
-            Available Rooms
-          </h3>
-          <div className="space-y-3 max-h-60 overflow-y-auto p-2 bg-gray-800 rounded-lg border border-gray-700">
-            {rooms.length > 0 ? (
-              rooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="flex justify-between items-center bg-gray-700 p-4 rounded-lg"
-                >
-                  <span className="font-medium">{`Room ${room.id.substring(
-                    0,
-                    5
-                  )}`}</span>
-                  <span className="text-sm text-gray-400">{`${room.playerCount}/4 players`}</span>
-                  <button
-                    onClick={() => {
-                      if (!playerName.trim()) {
-                        alert("Please enter your name first");
-                        return;
-                      }
-                      router.push(
-                        `/room/${room.id}?name=${encodeURIComponent(
-                          playerName
-                        )}`
-                      );
-                    }}
-                    className="bg-green-600 text-white font-semibold py-1 px-3 rounded-md hover:bg-green-500 transition-colors"
-                  >
-                    Join
-                  </button>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-4">
-                No available rooms. Create one!
-              </p>
-            )}
-          </div>
         </div>
       </main>
 
