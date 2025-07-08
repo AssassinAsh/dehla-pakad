@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dehla Pakad - Multiplayer Card Game
+
+A real-time multiplayer implementation of the traditional Dehla Pakad card game built with Next.js, TypeScript, and Tailwind CSS.
+
+## Game Overview
+
+Dehla Pakad is a popular 4-player card game where players sit around a virtual table and compete to win tricks. Each player receives 13 cards from a standard 52-card deck and takes turns playing cards to win tricks.
+
+## Features
+
+- **Room System**: Create and join game rooms with unique IDs
+- **2x2 Table Layout**: Visual representation of 4 players sitting around a table
+- **Seat Selection**: Players can choose any available seat (1-4)
+- **Real-time Synchronization**: Built with Socket.IO for multiplayer gameplay
+- **Card Dealing**: Automatic distribution of 13 cards to each player
+- **Turn-based Gameplay**: Organized trick-taking mechanics
+- **Responsive Design**: Works on desktop and mobile devices
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone [repository-url]
+   cd dehla-pakad
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Building for Production
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+src/
+├── app/
+│   ├── page.tsx              # Home page with room listing
+│   ├── room/[roomId]/
+│   │   └── page.tsx          # Individual room page
+│   └── layout.tsx            # App layout
+├── components/
+│   ├── Card.tsx              # Card component
+│   └── GameTable.tsx         # Game table component
+├── types/
+│   └── game.ts               # TypeScript interfaces
+└── utils/
+    └── gameUtils.ts          # Game logic utilities
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Game Rules
 
-## Learn More
+1. **Setup**: 4 players join a room and select seats
+2. **Dealing**: Each player receives 13 cards from a 52-card deck
+3. **Playing**: Players take turns playing cards to win tricks
+4. **Winning**: The player/team with the most tricks wins the game
 
-To learn more about Next.js, take a look at the following resources:
+## Technologies Used
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Next.js 15**: React framework with App Router
+- **TypeScript**: Type safety and better development experience
+- **Tailwind CSS**: Utility-first CSS framework for styling
+- **Socket.IO**: Real-time bidirectional communication
+- **React Hooks**: Modern React state management
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Development
 
-## Deploy on Vercel
+### Available Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Future Enhancements
+
+- [ ] Complete Socket.IO integration
+- [ ] Add game scoring system
+- [ ] Implement advanced game rules
+- [ ] Add player authentication
+- [ ] Include game history and statistics
+- [ ] Add spectator mode
+- [ ] Implement reconnection handling
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
