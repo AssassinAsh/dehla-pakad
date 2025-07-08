@@ -205,6 +205,8 @@ export default function setupSocketIO(server) {
           }
         }
 
+        // Send the updated trick to everyone immediately to ensure cards are shown
+        io.to(roomId).emit("cardPlayed", room);
         io.to(roomId).emit("roomUpdated", room);
       } catch (error) {
         console.error(`Error playing card in room ${roomId}:`, error);
@@ -216,12 +218,9 @@ export default function setupSocketIO(server) {
     socket.on("startGame", (roomId) => {
       try {
         const room = RoomManager.getRoom(roomId);
-        if (
-          room &&
-          room.players.find((p) => p.id === socket.id) &&
-          room.players.length === 4 &&
-          !room.gameStarted
-        ) {
+
+        // Only need 4 players who have all joined
+        if (room && room.players.length === 4 && !room.gameStarted) {
           // Set dealer and dealing state
           RoomManager.setDealer(roomId, room.currentPlayer || 1);
           RoomManager.setDealing(roomId, true);

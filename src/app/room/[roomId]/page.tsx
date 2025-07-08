@@ -77,8 +77,8 @@ export default function RoomPage() {
       }
     });
     socket.on("gameStarted", (updated: Room) => setRoom(updated));
-    socket.on("cardPlayed", () => {
-      setRoom((r) => (r ? { ...r } : r)); // re-render on card play
+    socket.on("cardPlayed", (updatedRoom) => {
+      setRoom(updatedRoom); // Use the updated room state from server
     });
     socket.on("trumpRevealed", (suit: string) => {
       setRoom((r) =>
@@ -244,8 +244,22 @@ export default function RoomPage() {
             </div>
             <button
               onClick={() => setIsRulesModalOpen(true)}
-              className="bg-transparent border border-yellow-500 text-yellow-500 font-bold py-2 px-4 rounded-lg hover:bg-yellow-500 hover:text-gray-900 transition-colors"
+              className="bg-transparent border border-yellow-500 text-yellow-500 font-bold py-2 px-4 rounded-lg hover:bg-yellow-500 hover:text-gray-900 transition-colors flex items-center gap-2"
             >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
               Show Rules
             </button>
           </header>
@@ -270,25 +284,7 @@ export default function RoomPage() {
             </div>
           )}
 
-          {/* Scores as small overlay instead of white tiles */}
-          <div className="mt-2 bg-gray-900/80 p-2 rounded-lg text-center mx-auto max-w-md">
-            <div className="text-yellow-300 text-sm">Current Scores:</div>
-            <div className="flex justify-center gap-4 mt-1">
-              {room.players
-                .slice()
-                .sort((a, b) => a.seat - b.seat)
-                .map((p) => (
-                  <div key={p.seat} className="text-center">
-                    <div className="text-white text-xs">
-                      Seat {p.seat}: {p.name}
-                    </div>
-                    <div className="font-bold text-yellow-400">
-                      {room.gameState.scores[p.seat] || 0}✦
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
+          {/* Team Players panel removed as requested */}
         </div>
 
         {/* Player Hand (always at bottom, floating) */}
@@ -327,26 +323,85 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* Game Over */}
+        {/* Game Over - Updated for team scores */}
         {gameFinishedData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white p-6 rounded shadow-lg text-center space-y-4">
-              <h2 className="text-2xl font-bold">Game Over</h2>
+          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+            <div className="bg-gray-900 p-6 rounded-xl border-2 border-yellow-600 shadow-2xl text-center space-y-4 max-w-md w-full">
+              <h2 className="text-2xl font-bold text-yellow-400">Game Over</h2>
+
               {gameFinishedData.kot !== null && (
-                <p className="text-red-600">Kot! Seat {gameFinishedData.kot}</p>
-              )}
-              {Object.entries(gameFinishedData.scores).map(([s, sc]) => (
-                <div key={s} className="flex justify-between">
-                  <span>Seat {s}</span>
-                  <span>{sc}✦</span>
+                <div className="bg-red-900/60 p-3 rounded-lg text-red-300 font-bold text-lg animate-pulse">
+                  KOT! Seat {gameFinishedData.kot}
+                  <p className="text-sm font-normal mt-1 text-red-200/80">
+                    {room.players.find((p) => p.seat === gameFinishedData.kot)
+                      ?.name || "Player"}{" "}
+                    failed to win any tricks!
+                  </p>
                 </div>
-              ))}
-              <button
-                onClick={() => setGameFinishedData(null)}
-                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
-              >
-                Close
-              </button>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                {/* Team 1 */}
+                <div className="bg-blue-900/50 p-3 rounded-lg">
+                  <div className="font-bold text-white mb-1">Team 1</div>
+                  <div className="text-xl font-bold text-yellow-400 mb-2">
+                    {(gameFinishedData.scores[1] || 0) +
+                      (gameFinishedData.scores[3] || 0)}
+                    ✦
+                  </div>
+                  <div className="text-xs text-gray-300">Seats 1 & 3</div>
+                  <div className="flex justify-between mt-2 text-sm">
+                    <span>Seat 1:</span>
+                    <span className="font-medium text-white">
+                      {gameFinishedData.scores[1] || 0}✦
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Seat 3:</span>
+                    <span className="font-medium text-white">
+                      {gameFinishedData.scores[3] || 0}✦
+                    </span>
+                  </div>
+                </div>
+
+                {/* Team 2 */}
+                <div className="bg-green-900/50 p-3 rounded-lg">
+                  <div className="font-bold text-white mb-1">Team 2</div>
+                  <div className="text-xl font-bold text-yellow-400 mb-2">
+                    {(gameFinishedData.scores[2] || 0) +
+                      (gameFinishedData.scores[4] || 0)}
+                    ✦
+                  </div>
+                  <div className="text-xs text-gray-300">Seats 2 & 4</div>
+                  <div className="flex justify-between mt-2 text-sm">
+                    <span>Seat 2:</span>
+                    <span className="font-medium text-white">
+                      {gameFinishedData.scores[2] || 0}✦
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Seat 4:</span>
+                    <span className="font-medium text-white">
+                      {gameFinishedData.scores[4] || 0}✦
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-center gap-3">
+                <button
+                  onClick={() => setGameFinishedData(null)}
+                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  New Game
+                </button>
+              </div>
             </div>
           </div>
         )}
