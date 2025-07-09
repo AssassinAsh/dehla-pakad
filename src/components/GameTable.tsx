@@ -1,6 +1,7 @@
 import { Room } from "@/types/game";
 import Image from "next/image";
 import PlayArea from "./PlayArea";
+import { getSuitSymbol } from "@/utils/gameUtils";
 
 interface GameTableProps {
   room: Room;
@@ -61,20 +62,11 @@ export default function GameTable({
   const team1Scores = room.gameState.scores.team1;
   const team2Scores = room.gameState.scores.team2;
 
-  // Helper to get suit symbol
-  const getSuitSymbol = (suit: string) => {
-    switch (suit) {
-      case "S":
-        return "♠";
-      case "C":
-        return "♣";
-      case "H":
-        return "♥";
-      case "D":
-        return "♦";
-      default:
-        return "";
-    }
+  // Helper to get suit color
+  const getSuitColor = (suit: string) => {
+    return suit === "hearts" || suit === "diamonds"
+      ? "text-red-600"
+      : "text-gray-900";
   };
 
   return (
@@ -105,7 +97,11 @@ export default function GameTable({
           {room.gameState.trump && (
             <div className="bg-gradient-to-b from-purple-800 to-purple-900 text-white text-xs md:text-sm px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-purple-600 shadow-lg flex flex-col items-center">
               <span className="font-bold">Trump</span>
-              <span className="font-bold text-2xl text-yellow-300 leading-none">
+              <span
+                className={`font-bold text-3xl leading-none ${getSuitColor(
+                  room.gameState.trump
+                )}`}
+              >
                 {getSuitSymbol(room.gameState.trump)}
               </span>
             </div>
@@ -123,6 +119,37 @@ export default function GameTable({
             </div>
           </div>
         </div>
+
+        {/* Trump Card Display - More prominent when just set */}
+        {room.gameState.trump && room.gameState.trumpJustSet && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+            <div className="relative">
+              <div className="bg-white p-1 rounded-lg border-4 border-yellow-500 shadow-2xl transform transition-all duration-700 animate-flip">
+                <div className="flex flex-col items-center">
+                  <div className="bg-yellow-100 p-2 rounded-t-md w-full text-center">
+                    <span className="font-bold text-lg">Trump Set!</span>
+                  </div>
+                  <div className="p-4 flex flex-col items-center bg-white rounded-b-md">
+                    <span
+                      className={`text-6xl font-bold ${getSuitColor(
+                        room.gameState.trump
+                      )}`}
+                    >
+                      {getSuitSymbol(room.gameState.trump)}
+                    </span>
+                    <span className="mt-2 text-sm font-semibold text-gray-800">
+                      {room.gameState.trump.charAt(0).toUpperCase() +
+                        room.gameState.trump.slice(1)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {/* Decorative cards underneath for a more dramatic effect */}
+              <div className="absolute -bottom-2 -right-2 -z-10 w-full h-full bg-white rounded-lg border-2 border-gray-300 transform rotate-3"></div>
+              <div className="absolute -bottom-4 -left-2 -z-20 w-full h-full bg-white rounded-lg border-2 border-gray-300 transform -rotate-3"></div>
+            </div>
+          </div>
+        )}
 
         {/* Dealer & Deck - shown during dealing phase */}
         {isDealing && (

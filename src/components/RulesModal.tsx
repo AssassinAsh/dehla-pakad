@@ -10,9 +10,9 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
-      <div className="bg-gray-800 text-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6 border-2 border-yellow-500">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-yellow-400">
+      <div className="bg-white text-green-950 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col border-2 border-green-800">
+        <div className="flex justify-between items-center p-6 sticky top-0 bg-white z-10 border-b border-green-100">
+          <h2 className="text-2xl font-bold text-green-800">
             Dehla Pakad Rules
           </h2>
           <button
@@ -23,14 +23,14 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             &times;
           </button>
         </div>
-        <div className="space-y-4 prose prose-invert">
+        <div className="space-y-4 prose max-w-none p-6 pt-2 overflow-y-auto">
           <p>
             <strong>Objective:</strong> The main goal is to win tricks that
             contain &apos;Tens&apos; (Dehlas). The team that collects all four
             Tens wins the round.
           </p>
 
-          <h3 className="text-xl font-semibold text-yellow-300">
+          <h3 className="text-xl font-semibold text-green-700">
             Players &amp; Teams
           </h3>
           <p>
@@ -38,7 +38,7 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             sitting opposite each other form a team.
           </p>
 
-          <h3 className="text-xl font-semibold text-yellow-300">
+          <h3 className="text-xl font-semibold text-green-700">
             The Deal &amp; Trump
           </h3>
           <ul className="list-disc pl-5 space-y-2">
@@ -54,7 +54,7 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             </li>
           </ul>
 
-          <h3 className="text-xl font-semibold text-yellow-300">Gameplay</h3>
+          <h3 className="text-xl font-semibold text-green-700">Gameplay</h3>
           <ul className="list-disc pl-5 space-y-2">
             <li>
               The player to the dealer&apos;s left starts the first trick.
@@ -75,7 +75,7 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             <li>The winner of a trick leads the next one.</li>
           </ul>
 
-          <h3 className="text-xl font-semibold text-yellow-300">
+          <h3 className="text-xl font-semibold text-green-700">
             Scoring (Winning a Round)
           </h3>
           <ul className="list-disc pl-5 space-y-2">

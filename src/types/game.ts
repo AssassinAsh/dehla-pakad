@@ -71,6 +71,8 @@ export interface GameState {
   lastTrickWinner?: number;
   consecutiveWins?: number;
   dealing?: boolean;
+  status?: "waiting" | "in-progress" | "finished";
+  trumpJustSet?: boolean;
 }
 
 export interface RoomSummary {

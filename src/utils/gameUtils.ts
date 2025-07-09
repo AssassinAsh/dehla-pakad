@@ -78,6 +78,22 @@ export function getCardColor(suit: Card["suit"]): "red" | "black" {
   return suit === "hearts" || suit === "diamonds" ? "red" : "black";
 }
 
+// Get suit symbol
+export function getSuitSymbol(suit: string): string {
+  switch (suit) {
+    case "spades":
+      return "♠";
+    case "clubs":
+      return "♣";
+    case "hearts":
+      return "♥";
+    case "diamonds":
+      return "♦";
+    default:
+      return "";
+  }
+}
+
 // Check if a card can be played (basic rules)
 export function canPlayCard(
   card: Card,

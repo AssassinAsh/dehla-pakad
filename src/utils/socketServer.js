@@ -171,10 +171,17 @@ export default function setupSocketIO(server) {
             // This is a valid off-suit play. If trump isn't set, this card sets it.
             if (!room.gameState.trump) {
               room.gameState.trump = playedCard.suit;
-              room.gameState.trumpJustSet = true; // Flag to deal cards after trick
+              room.gameState.trumpJustSet = true; // Flag to deal cards after trick and show animation
               console.log(
                 `Trump suit has been set to: ${room.gameState.trump}`
               );
+
+              // Show the trump announcement for a few seconds, then clear flag
+              setTimeout(() => {
+                room.gameState.trumpJustSet = false;
+                RoomManager.updateRoom(roomId, room);
+                io.to(roomId).emit("roomUpdated", room);
+              }, 5000); // Show for 5 seconds
             }
           }
         }
@@ -271,7 +278,8 @@ export default function setupSocketIO(server) {
 
             // If trump was just set, deal remaining cards
             if (room.gameState.trumpJustSet) {
-              room.gameState.trumpJustSet = false; // Reset flag
+              // Don't reset the trumpJustSet flag here - it's used for animation
+              // and will be reset by a separate timeout
               if (room.deck && room.deck.length > 0) {
                 console.log("Dealing remaining cards...");
                 const deck = [...room.deck];

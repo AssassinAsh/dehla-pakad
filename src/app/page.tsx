@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { RoomSummary } from "@/types/game";
 import { io, Socket } from "socket.io-client";
 import RulesModal from "@/components/RulesModal"; // Import the modal
 
 export default function Home() {
-  const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [playerName, setPlayerName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [showJoinRoom, setShowJoinRoom] = useState(false); // State for showing join room dialog
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
   const [joinRoomId, setJoinRoomId] = useState("");
   const socketRef = useRef<Socket | null>(null);
@@ -29,10 +30,10 @@ export default function Home() {
       console.error("Socket.IO connection error:", error);
     });
 
-    // Listen for room list updates
+    // Listen for room list updates - currently logging only
     socket.on("roomsList", (roomsList: RoomSummary[]) => {
       console.log("Received rooms list:", roomsList);
-      setRooms(roomsList);
+      // We're not displaying the rooms list at this time
     });
 
     // Request current rooms list
@@ -118,20 +119,30 @@ export default function Home() {
 
   return (
     <>
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-900 text-white">
-        <div className="text-center mb-10">
-          <h1 className="text-6xl font-bold text-yellow-400 tracking-wider [text-shadow:_0_4px_8px_rgba(0,0,0,0.5)]">
+      <main className="flex min-h-screen flex-col md:flex-row items-center justify-center p-4 md:p-12 lg:p-16 bg-[#f6e7c6] text-green-950 relative">
+        {/* Logo and Title section */}
+        <div className="text-center mb-10 md:mb-0 md:w-1/2 md:flex md:flex-col md:justify-center md:items-center">
+          <div className="flex flex-col items-center mb-4 md:mb-8 animate-fade-in-up">
+            <Image
+              src="/logo.webp"
+              alt="Dehla Pakad Logo"
+              width={280}
+              height={280}
+              priority
+            />
+          </div>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-green-800 tracking-wider [text-shadow:_0_2px_4px_rgba(0,0,0,0.2)]">
             Dehla Pakad
           </h1>
-          <p className="text-gray-300 mt-2 text-lg">
+          <p className="text-gray-700 mt-2 text-base md:text-lg max-w-md">
             The classic 4-player trick-taking card game.
           </p>
         </div>
 
         {/* Room Creation & Join */}
-        <div className="w-full max-w-md bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700 space-y-8">
+        <div className="w-full max-w-md md:w-1/2 md:max-w-lg bg-white p-6 md:p-8 rounded-2xl shadow-2xl border border-green-800/20 space-y-6 md:space-y-8 md:ml-8 lg:ml-16">
           <div>
-            <h2 className="text-2xl font-bold text-center text-yellow-300 mb-6">
+            <h2 className="text-2xl font-bold text-center text-green-800 mb-6">
               Join or Create a Room
             </h2>
             <input
@@ -139,42 +150,64 @@ export default function Home() {
               placeholder="Enter your name"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 transition mb-4"
+              className="w-full px-4 py-3 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition mb-4"
             />
             <button
               onClick={createRoom}
               disabled={isCreatingRoom || !playerName.trim()}
-              className="w-full bg-yellow-500 text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-yellow-400 disabled:bg-gray-600 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg mb-2"
+              className="w-full bg-green-700 text-white font-bold py-2.5 sm:py-3 px-4 rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg mb-2"
             >
               {isCreatingRoom ? "Creating Room..." : "Create New Room"}
             </button>
           </div>
-          <div className="border-t border-gray-600 pt-6">
-            <h3 className="text-lg font-semibold text-yellow-200 mb-2">
-              Join with Room ID
-            </h3>
-            <input
-              type="text"
-              placeholder="Enter Room ID"
-              value={joinRoomId}
-              onChange={(e) => setJoinRoomId(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 transition mb-2"
-            />
-            <button
-              onClick={joinRoom}
-              disabled={!playerName.trim() || !joinRoomId.trim()}
-              className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-400 disabled:bg-gray-600 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg"
-            >
-              Join Room
-            </button>
+          <div className="border-t border-green-100 pt-4 sm:pt-6">
+            {showJoinRoom ? (
+              <div className="animate-fade-in">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-green-800">
+                    Join with Room ID
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowJoinRoom(false);
+                      setJoinRoomId("");
+                    }}
+                    className="text-green-800 hover:text-green-600"
+                  >
+                    &times; Cancel
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter Room ID"
+                  value={joinRoomId}
+                  onChange={(e) => setJoinRoomId(e.target.value)}
+                  className="w-full px-4 py-3 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition mb-4"
+                />
+                <button
+                  onClick={joinRoom}
+                  disabled={!playerName.trim() || !joinRoomId.trim()}
+                  className="w-full bg-green-700 text-white font-bold py-2.5 sm:py-3 px-4 rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg"
+                >
+                  Join Room
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowJoinRoom(true)}
+                className="w-full border-2 border-green-700 text-green-700 font-bold py-2.5 sm:py-3 px-4 rounded-lg hover:bg-green-50 transition-transform transform hover:scale-105"
+              >
+                Join Room
+              </button>
+            )}
           </div>
         </div>
 
         {/* Rules Button */}
-        <div className="mt-8">
+        <div className="mt-8 md:absolute md:bottom-8 md:right-8">
           <button
             onClick={() => setIsRulesModalOpen(true)}
-            className="bg-transparent border border-yellow-500 text-yellow-500 font-bold py-2 px-6 rounded-lg hover:bg-yellow-500 hover:text-gray-900 transition-colors"
+            className="bg-transparent border-2 border-green-700 text-green-700 font-bold py-2 px-6 rounded-lg hover:bg-green-700 hover:text-white transition-colors shadow-md"
           >
             Show Rules
           </button>
