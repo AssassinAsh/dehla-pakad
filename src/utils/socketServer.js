@@ -110,7 +110,7 @@ export default function setupSocketIO(server) {
     });
 
     // Handle playing a card
-    socket.on("playCard", (roomId, cardId) => {
+    socket.on("playCard", (roomId, cardId, playerName) => {
       try {
         const room = RoomManager.getRoom(roomId);
         if (!room || room.gameState.status !== "in-progress") {
@@ -118,9 +118,26 @@ export default function setupSocketIO(server) {
           return socket.emit("error", "Cannot play card: game not in progress");
         }
 
-        const player = room.players.find((p) => p.id === socket.id);
-        if (!player || room.currentPlayer !== player.seat) {
-          console.log("Not player's turn:", player?.seat, room.currentPlayer);
+        // Find player by name, as socket.id can change on reconnect
+        const player = room.players.find((p) => p.name === playerName);
+        if (!player) {
+          console.log(
+            `Player not found by name: ${playerName} in room ${roomId}`
+          );
+          return socket.emit("error", "Player not found.");
+        }
+
+        // Optional: Update socket.id if it's different (handles reconnection)
+        if (player.id !== socket.id) {
+          console.log(
+            `Updating socket ID for ${playerName} from ${player.id} to ${socket.id}`
+          );
+          player.id = socket.id;
+          RoomManager.updateRoom(roomId, room);
+        }
+
+        if (room.currentPlayer !== player.seat) {
+          console.log("Not player's turn:", player.seat, room.currentPlayer);
           return socket.emit("error", "It's not your turn.");
         }
 
@@ -142,7 +159,7 @@ export default function setupSocketIO(server) {
 
         // Broadcast the updated state to all players
         RoomManager.updateRoom(roomId, room);
-        io.to(roomId).emit("cardPlayed", room);
+        io.to(roomId).emit("roomUpdated", room); // Use roomUpdated for consistency
 
         // If trick is complete (4 cards), handle trick completion
         if (room.currentTrick.length === 4) {

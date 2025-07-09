@@ -8,7 +8,7 @@ const getCardImageSrc = (card: CardType): string => {
     K: "K",
     Q: "Q",
     J: "J",
-    "10": "0",
+    "10": "10",
     "9": "9",
     "8": "8",
     "7": "7",

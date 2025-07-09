@@ -154,9 +154,9 @@ export default function RoomPage() {
       });
       return;
     }
-    console.log("Playing card:", card);
-    // Send to server
-    socketRef.current.emit("playCard", room.id, card.id);
+    console.log(`Playing card: ${card.id} as player ${playerName}`);
+    // Send to server with playerName for identification
+    socketRef.current.emit("playCard", room.id, card.id, playerName);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
