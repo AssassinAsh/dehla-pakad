@@ -127,8 +127,10 @@ function setupSocketIO(server: any) {
           player.hand = initialHands[idx];
         });
         // Initialize game state with zeroed scores and full deck
-        const initialScores: { [seat: number]: number } = {};
-        room.players.forEach((p) => (initialScores[p.seat] = 0));
+        const initialScores = {
+          team1: { tricks: 0, tens: 0 },
+          team2: { tricks: 0, tens: 0 },
+        };
         const updatedGameState = {
           phase: "playing" as const,
           currentRound: 1,
@@ -175,7 +177,7 @@ function setupSocketIO(server: any) {
         }
         // Determine lead suit
         const leadSuit = room.currentTrick.length
-          ? room.currentTrick[0].suit
+          ? room.currentTrick[0].card.suit
           : card.suit;
         // Validate follow suit rule
         if (!canPlayCard(card, leadSuit, player.hand)) {
@@ -184,25 +186,17 @@ function setupSocketIO(server: any) {
         }
         // Remove card from hand and add to trick
         player.hand = player.hand.filter((c) => c.id !== cardId);
-        room.currentTrick.push(card);
+        room.currentTrick.push({ card, seat: player.seat });
         // If trick complete (each player played)
         if (room.currentTrick.length === room.players.length) {
-          const leadSuitCompleted = room.currentTrick[0].suit;
+          const leadSuitCompleted = room.currentTrick[0].card.suit;
           const trump = room.gameState.trump;
-          // Determine play order based on leadSeat
-          const sorted = [...room.players].sort((a, b) => a.seat - b.seat);
-          const startIdx = sorted.findIndex(
-            (p) => p.seat === (room.gameState.leadSeat || sorted[0].seat)
-          );
-          const order = Array(room.players.length)
-            .fill(0)
-            .map((_, i) => sorted[(startIdx + i) % sorted.length].seat);
           const winnerIdx = getTrickWinner(
-            room.currentTrick,
+            room.currentTrick.map((pc) => pc.card),
             leadSuitCompleted,
             trump
           );
-          const winnerSeat = order[winnerIdx];
+          const winnerSeat = room.currentTrick[winnerIdx].seat;
           // Record trick
           const trickObj = {
             cards: room.currentTrick,
@@ -216,65 +210,34 @@ function setupSocketIO(server: any) {
           } else {
             room.gameState.consecutiveWins = 1;
           }
-          room.gameState.lastTrickWinner = winnerSeat;
-          // Handle scoring: count tens
-          if (room.gameState.consecutiveWins! >= 2) {
-            // Capture all tricks played so far
-            const allCards = room.tricks.flatMap((t) => t.cards);
-            const tensCaptured = countTens(allCards);
-            room.gameState.scores[winnerSeat] += tensCaptured;
-            // Clear tricks history
-            room.tricks = [];
-          } else {
-            // Score only this trick
-            const tensCaptured = countTens(trickObj.cards);
-            room.gameState.scores[winnerSeat] += tensCaptured;
-            room.gameState.leadSeat = winnerSeat;
-          }
-          // Reset current trick and advance round
+          // Update scores
+          const winnerTeam = winnerSeat % 2 === 1 ? "team1" : "team2";
+          room.gameState.scores[winnerTeam].tricks += 1;
+          const tensCaptured = countTens(
+            room.currentTrick.map((pc) => pc.card)
+          );
+          room.gameState.scores[winnerTeam].tens += tensCaptured;
+          // Clear current trick
           room.currentTrick = [];
-          // Advance to next round
-          room.gameState.currentRound! += 1;
-          // Check if round complete
-          if (room.gameState.currentRound! > 13) {
-            // End of round: determine Kot (capturing all 4 tens)
-            const finalScores = room.gameState.scores;
-            let kotWinner: number | null = null;
-            Object.entries(finalScores).forEach(([seat, score]) => {
-              if (score === 4) kotWinner = Number(seat);
-            });
-            room.gameState.phase = "finished";
-            io.to(roomId).emit("gameFinished", {
-              scores: finalScores,
-              kot: kotWinner,
-            });
-            return;
-          }
-          // Persist updated room
-          RoomManager.updateRoom(roomId, {
-            players: room.players,
-            currentTrick: room.currentTrick,
-            currentPlayer: room.currentPlayer,
-            gameState: room.gameState,
-            tricks: room.tricks,
-          });
+          room.currentPlayer = winnerSeat;
+          room.gameState.leadSeat = winnerSeat;
+          room.gameState.lastTrickWinner = winnerSeat;
           io.to(roomId).emit("trickCompleted", trickObj);
+        } else {
+          // Move to next player
+          const currentPlayerIndex = room.players.findIndex(
+            (p) => p.seat === room.currentPlayer
+          );
+          room.currentPlayer =
+            room.players[(currentPlayerIndex + 1) % room.players.length].seat;
+          io.to(roomId).emit("cardPlayed", {
+            card,
+            seat: player.seat,
+            nextPlayer: room.currentPlayer,
+          });
         }
-        // Advance turn
-        const idx = room.players.findIndex(
-          (p) => p.seat === room.currentPlayer
-        );
-        const next = room.players[(idx + 1) % room.players.length];
-        room.currentPlayer = next.seat;
-        // Persist updates
-        RoomManager.updateRoom(roomId, {
-          players: room.players,
-          currentTrick: room.currentTrick,
-          currentPlayer: room.currentPlayer,
-          gameState: room.gameState,
-        });
-        // Notify players
-        io.to(roomId).emit("cardPlayed", card, socket.id);
+        const updatedRoom = RoomManager.getRoom(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
       } catch {
         socket.emit("gameError", "Failed to play card");
       }

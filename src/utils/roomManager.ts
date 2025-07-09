@@ -11,7 +11,10 @@ export class RoomManager {
       gameState: {
         phase: "waiting",
         currentRound: 0,
-        scores: {},
+        scores: {
+          team1: { tricks: 0, tens: 0 },
+          team2: { tricks: 0, tens: 0 },
+        },
         remainingDeck: [],
       },
       currentTrick: [],
@@ -19,6 +22,7 @@ export class RoomManager {
       tricks: [],
       gameStarted: false,
       createdAt: new Date(),
+      stackedTricks: [],
     };
 
     rooms.set(roomId, room);
