@@ -7,6 +7,7 @@ import { Room, Player, Card } from "@/types/game";
 import GameTable from "@/components/GameTable";
 import RulesModal from "@/components/RulesModal";
 import PlayerHand from "@/components/PlayerHand";
+import Toast from "@/components/Toast"; // Import the new Toast component
 import "@/styles/animations.css";
 import {
   DndContext,
@@ -15,7 +16,6 @@ import {
   useSensors,
   PointerSensor,
   TouchSensor,
-  MouseSensor,
 } from "@dnd-kit/core";
 
 export default function RoomPage() {
@@ -44,10 +44,7 @@ export default function RoomPage() {
   const [room, setRoom] = useState<Room | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
-  const [gameFinishedData, setGameFinishedData] = useState<{
-    scores: Record<number, number>;
-    kot: number | null;
-  } | null>(null);
+  const [error, setError] = useState<string | null>(null); // State for error toast
 
   // Copy invite link to clipboard
   const [copied, setCopied] = useState(false);
@@ -78,8 +75,11 @@ export default function RoomPage() {
         socket.emit("checkRoom", roomId, (exists: boolean) => {
           if (!exists) {
             console.error("Room doesn't exist:", roomId);
-            alert(`Room ${roomId} doesn't exist or has been closed.`);
-            window.location.href = "/";
+            // Use the toast for this error as well
+            setError(`Room ${roomId} doesn't exist or has been closed.`);
+            setTimeout(() => {
+              window.location.href = "/";
+            }, 3000);
           }
         });
       }
@@ -87,12 +87,12 @@ export default function RoomPage() {
 
     socket.on("connect_error", (error) => {
       console.error("Socket.IO connection error:", error);
+      setError("Connection to server failed. Please refresh.");
     });
 
     socket.on("error", (message) => {
       console.error("Received error from server:", message);
-      // Here you can add logic to display the error to the user, e.g., using a toast notification library.
-      alert(`Error: ${message}`);
+      setError(message);
     });
 
     // Join room for updates (server will add to socket.join on create/join events)
@@ -107,7 +107,6 @@ export default function RoomPage() {
       }
     });
 
-    socket.on("gameFinished", (data) => setGameFinishedData(data));
     return () => {
       socket.disconnect();
     };
@@ -212,14 +211,6 @@ export default function RoomPage() {
   // Helper: is it this player's turn?
   const isMyTurn =
     currentPlayer && room && room.currentPlayer === currentPlayer.seat;
-
-  // Calculate team scores
-  const team1Score = room
-    ? (room.gameState.scores[1] || 0) + (room.gameState.scores[3] || 0)
-    : 0;
-  const team2Score = room
-    ? (room.gameState.scores[2] || 0) + (room.gameState.scores[4] || 0)
-    : 0;
 
   // If room data isn't loaded yet
   if (!room) {
@@ -342,43 +333,6 @@ export default function RoomPage() {
               </button>
             </div>
           )}
-
-          {/* Scoring Summary */}
-          {room.gameStarted && (
-            <div className="mt-4 md:mt-6 bg-black/40 rounded-lg p-3 md:p-4 border border-gray-700">
-              <h3 className="text-lg md:text-xl font-bold text-yellow-400 mb-1 md:mb-2">
-                Current Scores
-              </h3>
-              <div className="grid grid-cols-2 gap-2 md:gap-4">
-                <div className="bg-blue-900/60 p-2 md:p-3 rounded-md border border-blue-700">
-                  <h4 className="font-bold text-white text-sm md:text-base">
-                    Team 1{" "}
-                    <span className="hidden xs:inline">(Seats 1 & 3)</span>
-                  </h4>
-                  <p className="text-lg md:text-xl font-bold text-yellow-300">
-                    {team1Score} points
-                  </p>
-                  <div className="text-xs md:text-sm text-blue-200 mt-1">
-                    1: {room.gameState.scores[1] || 0} | 3:{" "}
-                    {room.gameState.scores[3] || 0}
-                  </div>
-                </div>
-                <div className="bg-green-900/60 p-2 md:p-3 rounded-md border border-green-700">
-                  <h4 className="font-bold text-white text-sm md:text-base">
-                    Team 2{" "}
-                    <span className="hidden xs:inline">(Seats 2 & 4)</span>
-                  </h4>
-                  <p className="text-lg md:text-xl font-bold text-yellow-300">
-                    {team2Score} points
-                  </p>
-                  <div className="text-xs md:text-sm text-green-200 mt-1">
-                    2: {room.gameState.scores[2] || 0} | 4:{" "}
-                    {room.gameState.scores[4] || 0}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Player Hand (always at bottom, floating) */}
@@ -394,6 +348,9 @@ export default function RoomPage() {
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
       />
+      {error && (
+        <Toast message={error} onClose={() => setError(null)} type="error" />
+      )}
     </DndContext>
   );
 }

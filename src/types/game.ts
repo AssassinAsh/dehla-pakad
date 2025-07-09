@@ -53,10 +53,18 @@ export interface Trick {
   leadSuit: string;
 }
 
+export interface TeamScore {
+  tricks: number;
+  tens: number;
+}
+
 export interface GameState {
   phase: "waiting" | "dealing" | "playing" | "finished";
   currentRound: number;
-  scores: { [seatNumber: number]: number };
+  scores: {
+    team1: TeamScore;
+    team2: TeamScore;
+  };
   remainingDeck: Card[];
   trump?: string;
   leadSeat?: number;

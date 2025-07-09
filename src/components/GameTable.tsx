@@ -58,10 +58,8 @@ export default function GameTable({
   const seatOrder = [0, 1, 2, 3].map((i) => ((mySeat - 1 + i) % 4) + 1);
 
   // Calculate team scores
-  const team1Score =
-    (room.gameState.scores[1] || 0) + (room.gameState.scores[3] || 0);
-  const team2Score =
-    (room.gameState.scores[2] || 0) + (room.gameState.scores[4] || 0);
+  const team1Scores = room.gameState.scores.team1;
+  const team2Scores = room.gameState.scores.team2;
 
   // Helper to get suit symbol
   const getSuitSymbol = (suit: string) => {
@@ -89,40 +87,40 @@ export default function GameTable({
         {/* Subtle inner shadow */}
         <div className="absolute inset-0 shadow-inner rounded-xl pointer-events-none"></div>
 
-        {/* Trump Indicator */}
-        {room.gameState.trump && (
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 transform -translate-y-5 md:-translate-y-7">
-            <div className="bg-gradient-to-b from-purple-800 to-purple-900 text-white text-xs md:text-sm px-3 py-1 md:py-1.5 rounded-t-md border-t-1 md:border-t-2 border-l-1 md:border-l-2 border-r-1 md:border-r-2 border-purple-600 flex items-center shadow-lg">
+        {/* Top bar for scores and trump */}
+        <div className="absolute top-0 left-0 w-full flex justify-between items-start z-10 transform -translate-y-5 md:-translate-y-7 px-4">
+          {/* Team 1 Score */}
+          <div className="bg-gradient-to-b from-blue-800 to-blue-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-blue-600 shadow-lg text-center">
+            <div className="font-bold">Team 1 (1&3)</div>
+            <div className="font-bold text-yellow-300 text-base md:text-lg">
+              {team1Scores.tricks}
+              <span className="text-sm text-blue-200"> tricks</span>
+            </div>
+            <div className="text-xs text-blue-200">
+              {team1Scores.tens} tens captured
+            </div>
+          </div>
+
+          {/* Trump Indicator */}
+          {room.gameState.trump && (
+            <div className="bg-gradient-to-b from-purple-800 to-purple-900 text-white text-xs md:text-sm px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-purple-600 shadow-lg flex flex-col items-center">
               <span className="font-bold">Trump</span>
-              <span className="ml-2 font-bold text-xl text-yellow-300">
+              <span className="font-bold text-2xl text-yellow-300 leading-none">
                 {getSuitSymbol(room.gameState.trump)}
               </span>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Team score indicators at the top of the table */}
-        <div className="absolute top-0 left-0 w-full flex justify-between z-10 transform -translate-y-5 md:-translate-y-7">
-          {/* Team 1 Score (Seats 1 & 3) */}
-          <div className="bg-gradient-to-b from-blue-800 to-blue-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-1 md:border-t-2 border-l-1 md:border-l-2 border-r-1 md:border-r-2 border-blue-600 flex items-center shadow-lg">
-            <span className="font-bold">Team 1</span>
-            <span className="text-[10px] md:text-xs ml-1 md:ml-2 hidden xs:inline text-blue-200">
-              (1&3)
-            </span>
-            <span className="ml-2 md:ml-3 font-bold text-yellow-300">
-              {team1Score}✦
-            </span>
-          </div>
-
-          {/* Team 2 Score (Seats 2 & 4) */}
-          <div className="bg-gradient-to-b from-green-800 to-green-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-1 md:border-t-2 border-l-1 md:border-l-2 border-r-1 md:border-r-2 border-green-600 flex items-center shadow-lg">
-            <span className="font-bold">Team 2</span>
-            <span className="text-[10px] md:text-xs ml-1 md:ml-2 hidden xs:inline text-green-200">
-              (2&4)
-            </span>
-            <span className="ml-2 md:ml-3 font-bold text-yellow-300">
-              {team2Score}✦
-            </span>
+          {/* Team 2 Score */}
+          <div className="bg-gradient-to-b from-green-800 to-green-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-green-600 shadow-lg text-center">
+            <div className="font-bold">Team 2 (2&4)</div>
+            <div className="font-bold text-yellow-300 text-base md:text-lg">
+              {team2Scores.tricks}
+              <span className="text-sm text-green-200"> tricks</span>
+            </div>
+            <div className="text-xs text-green-200">
+              {team2Scores.tens} tens captured
+            </div>
           </div>
         </div>
 
