@@ -24,31 +24,213 @@
   100% { transform: translateY(0px); }
 }
 
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.5s ease-in-out forwards;
+  animation: fade-in 0.3s ease-out forwards;
 }
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
-/* Card positions in the play area */
+/* Enhanced Card Glow Effect */
+@keyframes card-glow {
+  0% {
+    box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 15px 5px rgba(255, 215, 0, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.4);
+  }
+}
+
+.animate-card-glow {
+  animation: card-glow 1.5s infinite;
+}
+
+/* Enhanced Draggable Cards */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+.wiggle {
+  animation: wiggle 0.3s ease-in-out;
+}
+
+/* Play Area Highlight */
+@keyframes play-area-highlight {
+  0% { box-shadow: 0 0 8px 2px rgba(52, 211, 153, 0.4); }
+  50% { box-shadow: 0 0 18px 6px rgba(52, 211, 153, 0.7); }
+  100% { box-shadow: 0 0 8px 2px rgba(52, 211, 153, 0.4); }
+}
+
+.animate-play-area-highlight {
+  animation: play-area-highlight 2s infinite;
+}
+
+/* Card Slide-In Animation */
+@keyframes slide-in-right {
+  from { 
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Fix for mobile drag and drop */
+.touch-action-none {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.no-select {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Custom style for card being dragged */
+.card-dragging {
+  transform: scale(1.08);
+  opacity: 0.9;
+  z-index: 1000;
+  pointer-events: auto;
+  cursor: grabbing !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+  will-change: transform;
+}
 .play-area-card-1 {
-  transform: rotate(-3deg) translate(-15px, 0);
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1;
 }
 
 .play-area-card-2 {
-  transform: rotate(3deg) translate(15px, -5px);
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 2;
 }
 
 .play-area-card-3 {
-  transform: rotate(-2deg) translate(-5px, 5px);
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 3;
 }
 
 .play-area-card-4 {
-  transform: rotate(2deg) translate(5px, 0);
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 4;
+}
+
+/* Card Dragging States */
+.card-dragging {
+  transform: scale(1.1);
+  opacity: 0.9;
+  cursor: grabbing;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+/* For the "your turn" glow effect */
+.your-turn-glow {
+  box-shadow: 0 0 10px 3px rgba(46, 213, 115, 0.7);
+}
+
+/* Card Fan Layout */
+.card-fan {
+  transform-origin: bottom center;
+  transition: transform 0.3s ease-out;
+}
+
+/* Team Indicators */
+.team-1-bg {
+  background: linear-gradient(135deg, #1e40af, #1e3a8a);
+}
+
+.team-2-bg {
+  background: linear-gradient(135deg, #065f46, #064e3b);
+}
+
+/* Radial Gradient Background for Play Area */
+.bg-radial-gradient {
+  background: radial-gradient(circle at center, var(--tw-gradient-from) 0%, var(--tw-gradient-via, transparent) 40%, var(--tw-gradient-to, transparent) 100%);
+}
+
+/* Text Shadow for better readability */
+.text-shadow {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Mobile touch optimizations */
+.touch-action-none {
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent text selection during drag on mobile */
+.no-select {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Enhanced highlight for interactive elements on mobile */
+@media (max-width: 768px) {
+  .animate-card-glow {
+    animation: card-glow 1.2s infinite;
+    animation-delay: 0.5s;
+  }
+  
+  .your-turn-glow {
+    box-shadow: 0 0 15px 5px rgba(46, 213, 115, 0.8);
+  }
+}
+
+/* Fix for sticky hover effects on touch devices */
+@media (hover: hover) {
+  .hover-effect:hover {
+    transform: translateY(-5px);
+  }
+}
+
+/* Ensure proper draggable behavior on iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  .draggable-card {
+    -webkit-user-drag: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 }

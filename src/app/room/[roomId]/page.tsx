@@ -3,11 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Room, Player, Card, Trick } from "@/types/game";
+import { Room, Player, Card } from "@/types/game";
 import GameTable from "@/components/GameTable";
-import RulesModal from "@/components/RulesModal"; // Import the modal
-import CardComponent from "@/components/Card"; // Renamed to avoid conflict
+import RulesModal from "@/components/RulesModal";
+import PlayerHand from "@/components/PlayerHand";
 import "@/styles/animations.css";
+import {
+  DndContext,
+  DragEndEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  TouchSensor,
+  MouseSensor,
+} from "@dnd-kit/core";
 
 export default function RoomPage() {
   const router = useRouter();
@@ -16,6 +25,21 @@ export default function RoomPage() {
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
   const playerName = searchParams.get("name") || "";
+
+  // Configure DnD sensors for better mobile/touch support
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Minimum drag distance before activation (reduced for better responsiveness)
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150, // Short delay for touch activation (reduced for better responsiveness)
+        tolerance: 5, // Tolerance for movement
+      },
+    })
+  );
 
   const [room, setRoom] = useState<Room | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
@@ -76,18 +100,7 @@ export default function RoomPage() {
         setCurrentPlayer(me);
       }
     });
-    socket.on("gameStarted", (updated: Room) => setRoom(updated));
-    socket.on("cardPlayed", (updatedRoom) => {
-      setRoom(updatedRoom); // Use the updated room state from server
-    });
-    socket.on("trumpRevealed", (suit: string) => {
-      setRoom((r) =>
-        r ? { ...r, gameState: { ...r.gameState, trump: suit } } : r
-      );
-    });
-    socket.on("trickCompleted", (trick: Trick) => {
-      setRoom((r) => (r ? { ...r, tricks: [...r.tricks, trick] } : r));
-    });
+
     socket.on("gameFinished", (data) => setGameFinishedData(data));
     return () => {
       socket.disconnect();
@@ -130,8 +143,43 @@ export default function RoomPage() {
   };
 
   const playCard = (card: Card) => {
-    if (!currentPlayer || !room || !socketRef.current) return;
+    if (!currentPlayer || !room || !socketRef.current) {
+      console.log("Cannot play card: invalid state", { currentPlayer, room });
+      return;
+    }
+    if (room.currentPlayer !== currentPlayer.seat) {
+      console.log("Not your turn", {
+        current: room.currentPlayer,
+        player: currentPlayer.seat,
+      });
+      return;
+    }
+    console.log("Playing card:", card);
+    // Send to server
     socketRef.current.emit("playCard", room.id, card.id);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { over, active } = event;
+
+    // If dropped on the play area
+    if (over && over.id === "play-area") {
+      const cardId = active.id as string;
+      const card = currentPlayer?.hand.find((c) => c.id === cardId);
+      if (
+        card &&
+        currentPlayer &&
+        room &&
+        room.currentPlayer === currentPlayer.seat
+      ) {
+        console.log("Card dropped and played:", card);
+        playCard(card);
+      } else {
+        console.log("Card drop rejected - not your turn or card not found");
+      }
+    } else {
+      console.log("Card not dropped on play area:", over?.id);
+    }
   };
 
   const [showNameModal, setShowNameModal] = useState(!playerName);
@@ -156,11 +204,16 @@ export default function RoomPage() {
   };
 
   // Helper: is it this player's turn?
-  const isMyTurn = currentPlayer && room.currentPlayer === currentPlayer.seat;
+  const isMyTurn =
+    currentPlayer && room && room.currentPlayer === currentPlayer.seat;
 
-  // Helper: can play this card? (basic: must be your turn and card in hand)
-  const canPlayCard = (card: Card) =>
-    isMyTurn && currentPlayer?.hand.some((c) => c.id === card.id);
+  // Calculate team scores
+  const team1Score = room
+    ? (room.gameState.scores[1] || 0) + (room.gameState.scores[3] || 0)
+    : 0;
+  const team2Score = room
+    ? (room.gameState.scores[2] || 0) + (room.gameState.scores[4] || 0)
+    : 0;
 
   // If room data isn't loaded yet
   if (!room) {
@@ -206,9 +259,9 @@ export default function RoomPage() {
   }
 
   return (
-    <>
-      <div className="min-h-screen p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white pb-40">
-        <div className="max-w-7xl mx-auto space-y-4">
+    <DndContext onDragEnd={handleDragEnd} autoScroll={false} sensors={sensors}>
+      <div className="min-h-screen p-2 md:p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white pb-32 md:pb-40">
+        <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           {/* Header */}
           <header className="flex justify-between items-center p-4 rounded-lg bg-black/30">
             <div>
@@ -272,146 +325,69 @@ export default function RoomPage() {
             onSeatClick={joinSeat}
           />
 
-          {/* Start Game Button */}
+          {/* Start Game Button - Fixed position */}
           {!room.gameStarted && room.players.length === 4 && (
             <div className="flex justify-center mt-4">
               <button
                 onClick={startGame}
-                className="bg-yellow-500 text-gray-900 font-bold py-3 px-8 rounded-lg hover:bg-yellow-400 transition-transform transform hover:scale-105 shadow-lg text-xl"
+                className="bg-gradient-to-r from-yellow-500 to-amber-500 text-gray-900 font-bold py-3 px-8 rounded-lg hover:from-yellow-400 hover:to-amber-400 transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-yellow-600"
               >
                 Start Game / Deal Cards
               </button>
             </div>
           )}
 
-          {/* Team Players panel removed as requested */}
+          {/* Scoring Summary */}
+          {room.gameStarted && (
+            <div className="mt-4 md:mt-6 bg-black/40 rounded-lg p-3 md:p-4 border border-gray-700">
+              <h3 className="text-lg md:text-xl font-bold text-yellow-400 mb-1 md:mb-2">
+                Current Scores
+              </h3>
+              <div className="grid grid-cols-2 gap-2 md:gap-4">
+                <div className="bg-blue-900/60 p-2 md:p-3 rounded-md border border-blue-700">
+                  <h4 className="font-bold text-white text-sm md:text-base">
+                    Team 1{" "}
+                    <span className="hidden xs:inline">(Seats 1 & 3)</span>
+                  </h4>
+                  <p className="text-lg md:text-xl font-bold text-yellow-300">
+                    {team1Score} points
+                  </p>
+                  <div className="text-xs md:text-sm text-blue-200 mt-1">
+                    1: {room.gameState.scores[1] || 0} | 3:{" "}
+                    {room.gameState.scores[3] || 0}
+                  </div>
+                </div>
+                <div className="bg-green-900/60 p-2 md:p-3 rounded-md border border-green-700">
+                  <h4 className="font-bold text-white text-sm md:text-base">
+                    Team 2{" "}
+                    <span className="hidden xs:inline">(Seats 2 & 4)</span>
+                  </h4>
+                  <p className="text-lg md:text-xl font-bold text-yellow-300">
+                    {team2Score} points
+                  </p>
+                  <div className="text-xs md:text-sm text-green-200 mt-1">
+                    2: {room.gameState.scores[2] || 0} | 4:{" "}
+                    {room.gameState.scores[4] || 0}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Player Hand (always at bottom, floating) */}
         {currentPlayer && (
-          <div className="fixed left-0 right-0 bottom-0 z-40 flex flex-col items-center pb-4 pointer-events-none">
-            <div className="mb-2 text-lg font-semibold text-yellow-200">
-              Your Hand
-            </div>
-            <div className="flex gap-2 justify-center items-end pointer-events-auto">
-              {currentPlayer.hand.map((card, idx) => (
-                <div
-                  key={card.id}
-                  style={{
-                    animation: room.gameState.dealing
-                      ? `fadeInUp 0.5s ${(idx + 1) * 0.15}s both`
-                      : undefined,
-                  }}
-                  className={`transition-transform duration-200 relative ${
-                    canPlayCard(card)
-                      ? "cursor-pointer hover:-translate-y-4 hover:scale-110 shadow-xl border-2 border-yellow-400 animate-pulse"
-                      : "opacity-60 cursor-not-allowed"
-                  }`}
-                  onClick={() => canPlayCard(card) && playCard(card)}
-                >
-                  <CardComponent card={card} size="large" />
-                </div>
-              ))}
-            </div>
-            {isMyTurn ? (
-              <div className="mt-2 text-green-400 font-bold animate-bounce">
-                It&apos;s your turn!
-              </div>
-            ) : (
-              <div className="mt-2 text-gray-400">Waiting for your turn...</div>
-            )}
-          </div>
-        )}
-
-        {/* Game Over - Updated for team scores */}
-        {gameFinishedData && (
-          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
-            <div className="bg-gray-900 p-6 rounded-xl border-2 border-yellow-600 shadow-2xl text-center space-y-4 max-w-md w-full">
-              <h2 className="text-2xl font-bold text-yellow-400">Game Over</h2>
-
-              {gameFinishedData.kot !== null && (
-                <div className="bg-red-900/60 p-3 rounded-lg text-red-300 font-bold text-lg animate-pulse">
-                  KOT! Seat {gameFinishedData.kot}
-                  <p className="text-sm font-normal mt-1 text-red-200/80">
-                    {room.players.find((p) => p.seat === gameFinishedData.kot)
-                      ?.name || "Player"}{" "}
-                    failed to win any tricks!
-                  </p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                {/* Team 1 */}
-                <div className="bg-blue-900/50 p-3 rounded-lg">
-                  <div className="font-bold text-white mb-1">Team 1</div>
-                  <div className="text-xl font-bold text-yellow-400 mb-2">
-                    {(gameFinishedData.scores[1] || 0) +
-                      (gameFinishedData.scores[3] || 0)}
-                    ✦
-                  </div>
-                  <div className="text-xs text-gray-300">Seats 1 & 3</div>
-                  <div className="flex justify-between mt-2 text-sm">
-                    <span>Seat 1:</span>
-                    <span className="font-medium text-white">
-                      {gameFinishedData.scores[1] || 0}✦
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Seat 3:</span>
-                    <span className="font-medium text-white">
-                      {gameFinishedData.scores[3] || 0}✦
-                    </span>
-                  </div>
-                </div>
-
-                {/* Team 2 */}
-                <div className="bg-green-900/50 p-3 rounded-lg">
-                  <div className="font-bold text-white mb-1">Team 2</div>
-                  <div className="text-xl font-bold text-yellow-400 mb-2">
-                    {(gameFinishedData.scores[2] || 0) +
-                      (gameFinishedData.scores[4] || 0)}
-                    ✦
-                  </div>
-                  <div className="text-xs text-gray-300">Seats 2 & 4</div>
-                  <div className="flex justify-between mt-2 text-sm">
-                    <span>Seat 2:</span>
-                    <span className="font-medium text-white">
-                      {gameFinishedData.scores[2] || 0}✦
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Seat 4:</span>
-                    <span className="font-medium text-white">
-                      {gameFinishedData.scores[4] || 0}✦
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-center gap-3">
-                <button
-                  onClick={() => setGameFinishedData(null)}
-                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  New Game
-                </button>
-              </div>
-            </div>
-          </div>
+          <PlayerHand
+            hand={currentPlayer.hand}
+            onPlayCard={playCard}
+            canPlay={!!isMyTurn}
+          />
         )}
       </div>
-
-      {/* Rules Modal */}
       <RulesModal
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
       />
-    </>
+    </DndContext>
   );
 }

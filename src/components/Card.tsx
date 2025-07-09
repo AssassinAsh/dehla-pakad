@@ -55,12 +55,20 @@ export default function Card({
   className = "",
 }: CardProps) {
   const sizeClasses = {
-    small: "w-12 h-18",
-    medium: "w-20 h-28",
-    large: "w-24 h-36",
+    small: "w-10 md:w-12 h-15 md:h-18",
+    medium: "w-14 md:w-20 h-20 md:h-28",
+    large: "w-18 md:w-24 h-28 md:h-36",
   };
 
   const imageSrc = getCardImageSrc(card);
+
+  // Get border color based on suit
+  const getSuitColor = () => {
+    if (card.suit === "hearts" || card.suit === "diamonds") {
+      return isSelected ? "border-red-500" : "hover:border-red-500/70";
+    }
+    return isSelected ? "border-blue-800" : "hover:border-blue-800/70";
+  };
 
   return (
     <div
@@ -68,17 +76,31 @@ export default function Card({
         relative transition-all duration-300 transform-gpu
         ${sizeClasses[size]}
         ${isSelected ? "-translate-y-4 scale-105" : "hover:scale-105"}
+        ${onClick ? "cursor-pointer" : ""}
         ${className}
       `}
       onClick={onClick}
     >
-      <Image
-        src={imageSrc}
-        alt={`${card.rank} of ${card.suit}`}
-        layout="fill"
-        objectFit="contain"
-        className="drop-shadow-lg"
-      />
+      <div
+        className={`
+          absolute inset-0 rounded-lg overflow-hidden border-2 ${getSuitColor()}
+          ${
+            isSelected
+              ? "shadow-lg shadow-yellow-500/30"
+              : "shadow-md hover:shadow-lg"
+          }
+          transition-all duration-200
+        `}
+      >
+        <Image
+          src={imageSrc}
+          alt={`${card.rank} of ${card.suit}`}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-contain"
+          priority={isSelected}
+        />
+      </div>
     </div>
   );
 }

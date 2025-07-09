@@ -113,104 +113,65 @@ export default function setupSocketIO(server) {
     socket.on("playCard", (roomId, cardId) => {
       try {
         const room = RoomManager.getRoom(roomId);
-        if (!room || room.gameState.status !== "in-progress") return;
+        if (!room || room.gameState.status !== "in-progress") {
+          console.log("Invalid room state for playing card");
+          return socket.emit("error", "Cannot play card: game not in progress");
+        }
 
         const player = room.players.find((p) => p.id === socket.id);
         if (!player || room.currentPlayer !== player.seat) {
-          // It's not this player's turn
+          console.log("Not player's turn:", player?.seat, room.currentPlayer);
           return socket.emit("error", "It's not your turn.");
         }
 
         const cardIndex = player.hand.findIndex((c) => c.id === cardId);
         if (cardIndex === -1) {
+          console.log("Invalid card played:", cardId);
           return socket.emit("error", "Invalid card played.");
         }
 
+        // Remove the card from player's hand
         const playedCard = player.hand.splice(cardIndex, 1)[0];
+        console.log(`Player ${player.seat} played card:`, playedCard);
 
-        // --- Dehla Pakad Logic ---
-        const trick = room.currentTrick;
-        const leadCard = trick.length > 0 ? trick[0].card : null;
+        // Add the played card to the current trick
+        room.currentTrick.push({ card: playedCard, seat: player.seat });
 
-        // Check if the player followed suit
-        let followedSuit = true;
-        if (leadCard && playedCard.suit !== leadCard.suit) {
-          if (player.hand.some((c) => c.suit === leadCard.suit)) {
-            // Player had a card of the lead suit but didn't play it
-            player.hand.push(playedCard); // Return card to hand
-            return socket.emit(
-              "error",
-              `You must follow the lead suit: ${leadCard.suit}`
-            );
-          }
-          followedSuit = false;
-        }
-
-        trick.push({ card: playedCard, seat: player.seat });
-
-        // Reveal trump if not set and player didn't follow suit
-        if (!room.gameState.trump && !followedSuit) {
-          room.gameState.trump = playedCard.suit;
-          io.to(roomId).emit("trumpRevealed", room.gameState.trump);
-
-          // Deal remaining 8 cards
-          const deck = createDeck(true); // Create a shuffled deck
-          const dealtCards = new Set(
-            room.players.flatMap((p) => p.hand.map((c) => c.id))
-          );
-          const remainingDeck = deck.filter((c) => !dealtCards.has(c.id));
-
-          room.players.forEach((p) => {
-            p.hand.push(...remainingDeck.splice(0, 8));
-          });
-        }
-
-        // Move to next player
+        // Move to next player immediately
         room.currentPlayer = (player.seat % 4) + 1;
 
-        // Check if trick is complete
-        if (trick.length === 4) {
-          // Determine trick winner (simplified for now)
+        // Broadcast the updated state to all players
+        RoomManager.updateRoom(roomId, room);
+        io.to(roomId).emit("cardPlayed", room);
+
+        // If trick is complete (4 cards), handle trick completion
+        if (room.currentTrick.length === 4) {
           const trickWinnerSeat = determineTrickWinner(
-            trick,
+            room.currentTrick,
             room.gameState.trump
           );
-          const trickWinner = room.players.find(
-            (p) => p.seat === trickWinnerSeat
-          );
+          console.log("Trick completed, winner:", trickWinnerSeat);
 
-          if (trickWinner) {
-            room.tricks.push({ winner: trickWinnerSeat, cards: [...trick] });
+          // Save the completed trick
+          const completedTrick = [...room.currentTrick];
+
+          // Wait before clearing the trick
+          setTimeout(() => {
+            room.tricks.push({
+              winner: trickWinnerSeat,
+              cards: completedTrick,
+            });
+            room.currentTrick = [];
             room.currentPlayer = trickWinnerSeat;
 
-            // Check for 2 consecutive wins
-            if (room.gameState.lastTrickWinner === trickWinnerSeat) {
-              trickWinner.capturedTricks.push(...room.tricks);
-              room.tricks = [];
-            } else {
-              trickWinner.capturedTricks.push(room.tricks.pop());
-            }
-            room.gameState.lastTrickWinner = trickWinnerSeat;
-          }
-
-          room.currentTrick = []; // Clear trick
-
-          // Check for end of round (13 tricks played)
-          if (room.players.every((p) => p.hand.length === 0)) {
-            // End of round logic
-            const scores = calculateScores(room.players);
-            const kot = checkForKot(scores);
-            io.to(roomId).emit("gameFinished", { scores, kot });
-            RoomManager.resetRoomForNewRound(roomId);
-          }
+            // Update and broadcast the new state
+            RoomManager.updateRoom(roomId, room);
+            io.to(roomId).emit("roomUpdated", room);
+          }, 1500);
         }
-
-        // Send the updated trick to everyone immediately to ensure cards are shown
-        io.to(roomId).emit("cardPlayed", room);
-        io.to(roomId).emit("roomUpdated", room);
       } catch (error) {
-        console.error(`Error playing card in room ${roomId}:`, error);
-        socket.emit("error", "An error occurred while playing your card.");
+        console.error("Error playing card:", error);
+        socket.emit("error", "Error playing card");
       }
     });
 

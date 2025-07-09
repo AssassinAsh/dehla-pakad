@@ -1,6 +1,7 @@
 import { Room } from "@/types/game";
 import { getCardDisplayName } from "@/utils/gameUtils";
 import Image from "next/image";
+import PlayArea from "./PlayArea";
 
 interface GameTableProps {
   room: Room;
@@ -9,15 +10,17 @@ interface GameTableProps {
   onSeatClick?: (seat: number) => void;
 }
 
+// Defines the position styling for each seat based on local player's perspective
 const seatPositions = [
-  { name: "bottom", style: "absolute left-1/2 bottom-0 -translate-x-1/2" },
-  { name: "left", style: "absolute left-0 top-1/2 -translate-y-1/2" },
-  { name: "top", style: "absolute left-1/2 top-0 -translate-x-1/2" },
-  { name: "right", style: "absolute right-0 top-1/2 -translate-y-1/2" },
+  { name: "bottom", style: "absolute left-1/2 bottom-3 -translate-x-1/2" },
+  { name: "left", style: "absolute left-3 top-1/2 -translate-y-1/2" },
+  { name: "top", style: "absolute left-1/2 top-3 -translate-x-1/2" },
+  { name: "right", style: "absolute right-3 top-1/2 -translate-y-1/2" },
 ];
 
-// GameTable component
-
+/**
+ * GameTable component - Displays the main game table with players, cards, and game state
+ */
 export default function GameTable({
   room,
   dealerSeat,
@@ -26,6 +29,28 @@ export default function GameTable({
 }: GameTableProps) {
   const isDealing = room.gameState.dealing;
 
+  // Helper function to get team styling based on seat number
+  const getTeamStyle = (seat: number) => {
+    // Team 1: Seats 1 & 3
+    if (seat === 1 || seat === 3) {
+      return {
+        card: "bg-blue-500/30 border-blue-500",
+        background: "bg-blue-900",
+        label: "text-blue-200",
+        border: "border-blue-600",
+        text: "text-blue-200",
+      };
+    }
+    // Team 2: Seats 2 & 4
+    return {
+      card: "bg-green-500/30 border-green-500",
+      background: "bg-green-900",
+      label: "text-green-200",
+      border: "border-green-600",
+      text: "text-green-200",
+    };
+  };
+
   // Find the local player's seat
   const currentPlayer = room.players.find((p) => p.id === currentPlayerId);
   const mySeat = currentPlayer?.seat || 1;
@@ -33,170 +58,168 @@ export default function GameTable({
   // Rotate seat order so local player is always at the bottom
   const seatOrder = [0, 1, 2, 3].map((i) => ((mySeat - 1 + i) % 4) + 1);
 
+  // Calculate team scores
+  const team1Score =
+    (room.gameState.scores[1] || 0) + (room.gameState.scores[3] || 0);
+  const team2Score =
+    (room.gameState.scores[2] || 0) + (room.gameState.scores[4] || 0);
+
   return (
-    <div className="w-full max-w-3xl mx-auto bg-green-800 rounded-2xl aspect-[2/1] relative flex items-center justify-center p-8 shadow-2xl border-8 border-yellow-800">
-      {/* Team score indicators at the top of the table */}
-      <div className="absolute top-0 left-0 w-full flex justify-between z-10 transform -translate-y-7">
-        <div className="bg-blue-900 text-white text-sm px-3 py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-blue-600 flex items-center shadow-lg">
-          <span className="font-bold">Team 1</span>
-          <span className="text-xs ml-2 text-blue-200">(Seats 1 & 3)</span>
-          <span className="ml-3 font-bold text-yellow-400">
-            {(room.gameState.scores[1] || 0) + (room.gameState.scores[3] || 0)}✦
-          </span>
-        </div>
+    <div className="w-full max-w-3xl mx-auto relative flex items-center justify-center shadow-2xl">
+      {/* Table background with felt texture */}
+      <div className="w-full aspect-[2/1] bg-gradient-to-b from-green-800 to-green-900 rounded-2xl relative border-4 md:border-8 border-yellow-800 overflow-hidden p-3 md:p-8">
+        {/* Table texture overlay */}
+        <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-20 mix-blend-overlay"></div>
 
-        <div className="bg-green-900 text-white text-sm px-3 py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-green-600 flex items-center shadow-lg">
-          <span className="font-bold">Team 2</span>
-          <span className="text-xs ml-2 text-green-200">(Seats 2 & 4)</span>
-          <span className="ml-3 font-bold text-yellow-400">
-            {(room.gameState.scores[2] || 0) + (room.gameState.scores[4] || 0)}✦
-          </span>
-        </div>
-      </div>
-      {/* Dealer & Deck */}
-      {isDealing && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
-          <Image
-            src="/cards/back.png"
-            alt="Deck"
-            width={64}
-            height={90}
-            className="drop-shadow-lg animate-bounce"
-          />
-          {dealerSeat && (
-            <span className="mt-2 text-yellow-300 font-bold text-sm bg-black/60 px-2 py-1 rounded">
-              Dealer: Seat {dealerSeat}
+        {/* Subtle inner shadow */}
+        <div className="absolute inset-0 shadow-inner rounded-xl pointer-events-none"></div>
+
+        {/* Team score indicators at the top of the table */}
+        <div className="absolute top-0 left-0 w-full flex justify-between z-10 transform -translate-y-5 md:-translate-y-7">
+          {/* Team 1 Score (Seats 1 & 3) */}
+          <div className="bg-gradient-to-b from-blue-800 to-blue-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-1 md:border-t-2 border-l-1 md:border-l-2 border-r-1 md:border-r-2 border-blue-600 flex items-center shadow-lg">
+            <span className="font-bold">Team 1</span>
+            <span className="text-[10px] md:text-xs ml-1 md:ml-2 hidden xs:inline text-blue-200">
+              (1&3)
             </span>
-          )}
-        </div>
-      )}
+            <span className="ml-2 md:ml-3 font-bold text-yellow-300">
+              {team1Score}✦
+            </span>
+          </div>
 
-      {/* Rectangular seat boxes instead of circles */}
-      {seatOrder.map((seat, idx) => {
-        const player = room.players.find((p) => p.seat === seat);
-        const isCurrent = player?.id === currentPlayerId;
-        const isCurrentTurn = player && room.currentPlayer === player.seat;
-        return (
-          <div
-            key={seat}
-            className={
-              seatPositions[idx].style +
-              " z-10 flex flex-col items-center select-none"
-            }
-            onClick={() => onSeatClick && !player && onSeatClick(seat)}
-          >
-            {/* Seat rectangle */}
+          {/* Team 2 Score (Seats 2 & 4) */}
+          <div className="bg-gradient-to-b from-green-800 to-green-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-1 md:border-t-2 border-l-1 md:border-l-2 border-r-1 md:border-r-2 border-green-600 flex items-center shadow-lg">
+            <span className="font-bold">Team 2</span>
+            <span className="text-[10px] md:text-xs ml-1 md:ml-2 hidden xs:inline text-green-200">
+              (2&4)
+            </span>
+            <span className="ml-2 md:ml-3 font-bold text-yellow-300">
+              {team2Score}✦
+            </span>
+          </div>
+        </div>
+
+        {/* Dealer & Deck - shown during dealing phase */}
+        {isDealing && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
+            {/* Animated card deck with shadow */}
+            <div className="relative">
+              {/* Multiple stacked cards for a deck effect */}
+              <div className="absolute -left-1 -top-1 opacity-40">
+                <Image
+                  src="/cards/back.png"
+                  alt="Deck"
+                  width={64}
+                  height={90}
+                  className="rounded-md"
+                />
+              </div>
+              <div className="absolute -left-0.5 -top-0.5 opacity-70">
+                <Image
+                  src="/cards/back.png"
+                  alt="Deck"
+                  width={64}
+                  height={90}
+                  className="rounded-md"
+                />
+              </div>
+              <Image
+                src="/cards/back.png"
+                alt="Deck"
+                width={64}
+                height={90}
+                className="rounded-md drop-shadow-lg animate-bounce relative z-10"
+              />
+            </div>
+
+            {/* Dealer indicator */}
+            {dealerSeat && (
+              <span className="mt-3 text-yellow-300 font-bold text-sm bg-black/70 px-3 py-1.5 rounded-md border border-yellow-800 shadow-lg">
+                Dealer: Seat {dealerSeat}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Player seats positioned around table */}
+        {seatOrder.map((seat, idx) => {
+          // Find the player in this seat
+          const player = room.players.find((p) => p.seat === seat);
+
+          // Determine seat styling based on state
+          const isCurrent = player?.id === currentPlayerId;
+          const isCurrentTurn = player && room.currentPlayer === player.seat;
+          const teamStyle = getTeamStyle(seat);
+
+          // Style classes based on seat state
+          const seatBaseClasses =
+            "w-20 md:w-28 px-2 md:px-3 py-1.5 md:py-2.5 rounded-lg flex items-center justify-center border-l-2 md:border-l-4 shadow-xl transition-all duration-200 text-sm md:text-base";
+          let seatStateClasses = "";
+
+          if (isCurrent) {
+            // This is the current user's seat
+            seatStateClasses =
+              "border-yellow-400 bg-gradient-to-r from-blue-900 to-blue-800 ring-2 ring-yellow-300 ring-opacity-50";
+          } else if (isCurrentTurn) {
+            // This player's turn
+            seatStateClasses =
+              "border-green-400 bg-gradient-to-r from-green-800 to-green-900 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.3)]";
+          } else if (player) {
+            // Occupied seat
+            seatStateClasses =
+              "border-yellow-600 bg-gradient-to-r from-yellow-900 to-amber-950";
+          } else {
+            // Empty seat
+            seatStateClasses =
+              "border-gray-500 bg-gradient-to-r from-gray-800 to-gray-900 opacity-80 hover:opacity-100 hover:from-gray-700 cursor-pointer";
+          }
+
+          return (
             <div
-              className={
-                "w-24 px-2 py-2 rounded-md flex items-center justify-center border-l-4 shadow-xl transition-all duration-200 " +
-                (isCurrent
-                  ? "border-blue-500 bg-gradient-to-r from-blue-900 to-blue-800"
-                  : isCurrentTurn
-                  ? "border-green-500 bg-gradient-to-r from-green-800 to-green-900 animate-pulse"
-                  : player
-                  ? "border-yellow-500 bg-gradient-to-r from-yellow-900 to-amber-950"
-                  : "border-gray-500 bg-gradient-to-r from-gray-800 to-gray-900 opacity-70 hover:opacity-100 hover:from-gray-700")
-              }
+              key={seat}
+              className={`${seatPositions[idx].style} z-10 flex flex-col items-center select-none`}
+              onClick={() => onSeatClick && !player && onSeatClick(seat)}
             >
-              {player ? (
-                <div className="flex flex-col items-center text-center">
-                  <span className="text-base font-bold truncate text-white max-w-[5rem]">
-                    {player.name}
-                  </span>
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-yellow-200 font-medium">
-                      {player.hand.length} cards
+              {/* Seat rectangle */}
+              <div className={`${seatBaseClasses} ${seatStateClasses}`}>
+                {player ? (
+                  <div className="flex flex-col items-center text-center">
+                    <span className="text-sm md:text-base font-bold truncate text-white max-w-[4.5rem] md:max-w-[5rem]">
+                      {player.name}
                     </span>
-                    {isCurrentTurn && (
-                      <span className="ml-1 text-xs text-green-400">▶</span>
-                    )}
+                    <div className="flex items-center mt-0.5 md:mt-1">
+                      <span className="text-[10px] md:text-xs text-yellow-200 font-medium">
+                        {player.hand.length} cards
+                      </span>
+                      {isCurrentTurn && (
+                        <span className="ml-1 text-xs text-green-400">▶</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <span className="text-sm text-gray-300">Seat {seat}</span>
-                  <div className="text-xs text-gray-400 mt-1">
-                    Click to join
+                ) : (
+                  <div className="text-center">
+                    <span className="text-sm text-gray-300">Seat {seat}</span>
+                    <div className="text-xs text-gray-400 mt-1">
+                      Click to join
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {/* Small team indicator */}
+              {player && (
+                <div
+                  className={`${teamStyle.background} text-xs px-2 py-0.5 rounded-b-md mt-1 text-white opacity-80`}
+                >
+                  Team {seat === 1 || seat === 3 ? "1" : "2"}
                 </div>
               )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
 
-      {/* Trick cards in center (play area) - improved positioning */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
-        {/* Play area with clear team indicators */}
-        <div className="w-64 h-40 flex items-center justify-center relative border-2 border-dashed border-yellow-400 rounded-xl bg-green-900/50">
-          <div className="flex items-center justify-center w-full h-full relative">
-            {room.currentTrick.map(({ card, seat }, idx) => {
-              // Find player who played this card
-              const player = room.players.find((p) => p.seat === seat);
-
-              // Get team color based on seat (1&3 blue, 2&4 green)
-              const teamColor =
-                seat === 1 || seat === 3
-                  ? "bg-blue-500/30 border-blue-500"
-                  : "bg-green-500/30 border-green-500";
-
-              return (
-                <div
-                  key={`${card.id}-${seat}`}
-                  className={`absolute flex flex-col items-center animate-fade-in play-area-card-${
-                    idx + 1
-                  }`}
-                >
-                  <Image
-                    src={`/cards/${card.rank}${card.suit[0].toUpperCase()}.png`}
-                    alt={getCardDisplayName(card)}
-                    width={60}
-                    height={90}
-                    className={`rounded shadow-xl border-2 ${teamColor}`}
-                  />
-                  <div
-                    className={`${
-                      seat === 1 || seat === 3
-                        ? "bg-blue-900/80"
-                        : "bg-green-900/80"
-                    } text-center px-1 py-0.5 rounded mt-1 min-w-[60px] border border-gray-700`}
-                  >
-                    <span className="text-white text-xs">
-                      {player?.name || `Seat ${seat}`}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            {room.currentTrick.length === 0 && (
-              <div className="text-yellow-200/70 text-sm italic">
-                Cards played will appear here
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Trump and turn indicator */}
-        <div className="mt-2 flex flex-col items-center">
-          {room.gameState.trump && (
-            <div className="flex items-center gap-2 bg-black/50 px-3 py-1 rounded mb-1 border border-yellow-900">
-              <span className="text-yellow-200 text-xs">Trump: </span>
-              <span className="font-bold text-white">
-                {room.gameState.trump}
-              </span>
-            </div>
-          )}
-          {!room.gameState.trump && (
-            <span className="text-yellow-200 text-xs tracking-wider">
-              Play Area
-            </span>
-          )}
-          {room.currentPlayer && (
-            <div className="text-green-300 text-xs mt-1 animate-pulse">
-              Current turn: Seat {room.currentPlayer}
-            </div>
-          )}
-        </div>
+        {/* Play area in center with trick cards */}
+        <PlayArea room={room} mySeat={mySeat} />
       </div>
     </div>
   );
