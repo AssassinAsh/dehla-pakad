@@ -133,7 +133,6 @@ export default function setupSocketIO(server) {
             `Updating socket ID for ${playerName} from ${player.id} to ${socket.id}`
           );
           player.id = socket.id;
-          RoomManager.updateRoom(roomId, room);
         }
 
         if (room.currentPlayer !== player.seat) {
@@ -147,8 +146,32 @@ export default function setupSocketIO(server) {
           return socket.emit("error", "Invalid card played.");
         }
 
+        const playedCard = player.hand[cardIndex];
+
+        // --- DEHLA PAKAD GAME LOGIC ---
+        const leadSuit =
+          room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
+
+        if (leadSuit && playedCard.suit !== leadSuit) {
+          const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit);
+          if (hasLeadSuit) {
+            return socket.emit(
+              "error",
+              `You must follow the suit: ${leadSuit}`
+            );
+          }
+
+          // If trump isn't set yet, this card sets it.
+          if (!room.gameState.trump) {
+            room.gameState.trump = playedCard.suit;
+            room.gameState.trumpJustSet = true; // Flag to deal cards after trick
+            console.log(`Trump suit has been set to: ${room.gameState.trump}`);
+          }
+        }
+        // --- END OF GAME LOGIC ---
+
         // Remove the card from player's hand
-        const playedCard = player.hand.splice(cardIndex, 1)[0];
+        player.hand.splice(cardIndex, 1);
         console.log(`Player ${player.seat} played card:`, playedCard);
 
         // Add the played card to the current trick
@@ -181,7 +204,40 @@ export default function setupSocketIO(server) {
             room.currentTrick = [];
             room.currentPlayer = trickWinnerSeat;
 
-            // Update and broadcast the new state
+            // If trump was just set, deal remaining cards
+            if (room.gameState.trumpJustSet) {
+              room.gameState.trumpJustSet = false; // Reset flag
+              if (room.deck && room.deck.length > 0) {
+                console.log("Dealing remaining cards...");
+                const deck = [...room.deck];
+                room.deck = [];
+
+                // Animated dealing
+                const dealRemainingCards = () => {
+                  if (deck.length > 0) {
+                    // Deal one card to each player in order
+                    for (let i = 0; i < room.players.length; i++) {
+                      if (deck.length > 0) {
+                        const player = room.players[i];
+                        player.hand.push(deck.shift());
+                      }
+                    }
+                    RoomManager.updateRoom(roomId, room);
+                    io.to(roomId).emit("roomUpdated", room);
+                    setTimeout(dealRemainingCards, 300); // 300ms delay per round of dealing
+                  } else {
+                    console.log("Finished dealing remaining cards.");
+                    // Final update after dealing is complete
+                    RoomManager.updateRoom(roomId, room);
+                    io.to(roomId).emit("roomUpdated", room);
+                  }
+                };
+                dealRemainingCards();
+                return; // Prevent immediate final update before animation finishes
+              }
+            }
+
+            // Update and broadcast the new state if not dealing
             RoomManager.updateRoom(roomId, room);
             io.to(roomId).emit("roomUpdated", room);
           }, 1500);
