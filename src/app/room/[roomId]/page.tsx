@@ -89,6 +89,12 @@ export default function RoomPage() {
       console.error("Socket.IO connection error:", error);
     });
 
+    socket.on("error", (message) => {
+      console.error("Received error from server:", message);
+      // Here you can add logic to display the error to the user, e.g., using a toast notification library.
+      alert(`Error: ${message}`);
+    });
+
     // Join room for updates (server will add to socket.join on create/join events)
     socket.on("roomUpdated", (updated: Room) => {
       console.log("Room updated:", updated);

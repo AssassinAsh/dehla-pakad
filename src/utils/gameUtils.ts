@@ -63,14 +63,14 @@ export function dealCards(deck: Card[]): Card[][] {
 
 // Get card display name
 export function getCardDisplayName(card: Card): string {
-  const suitSymbols = {
-    hearts: "♥",
-    diamonds: "♦",
-    clubs: "♣",
-    spades: "♠",
+  const suitLetters = {
+    hearts: "H",
+    diamonds: "D",
+    clubs: "C",
+    spades: "S",
   };
 
-  return `${card.rank}${suitSymbols[card.suit]}`;
+  return `${card.rank}${suitLetters[card.suit]}`;
 }
 
 // Get card color for styling

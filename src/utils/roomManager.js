@@ -6,21 +6,21 @@ export class RoomManager {
     const room = {
       id: roomId,
       players: [firstPlayer],
-      gameState: {
-        phase: "waiting",
-        currentRound: 0,
-        scores: {},
-        remainingDeck: [],
-        dealing: false,
-      },
-      currentTrick: [],
-      currentPlayer: 1,
-      tricks: [],
       gameStarted: false,
-      createdAt: new Date(),
-      // Add new properties
-      dealerSeat: 1,
+      gameState: {
+        status: "waiting", // 'waiting', 'in-progress', 'finished'
+        trump: null,
+        trumpJustSet: false,
+        scores: {
+          team1: { tricks: 0, tens: 0 },
+          team2: { tricks: 0, tens: 0 },
+        },
+        lastTrickWinnerSeat: null,
+      },
       deck: [],
+      currentTrick: [],
+      stackedTricks: [], // For the new rule
+      tricks: [], // This will now store tricks captured by teams
     };
 
     rooms.set(roomId, room);

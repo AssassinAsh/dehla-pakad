@@ -19,15 +19,10 @@ const cardPositions = [
 
 interface DroppablePlayAreaProps {
   children: React.ReactNode;
-  isTrickEmpty: boolean;
   isMyTurn: boolean;
 }
 
-function DroppablePlayArea({
-  children,
-  isTrickEmpty,
-  isMyTurn,
-}: DroppablePlayAreaProps) {
+function DroppablePlayArea({ children, isMyTurn }: DroppablePlayAreaProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: "play-area",
     disabled: !isMyTurn,
@@ -58,8 +53,6 @@ function DroppablePlayArea({
     return "border-yellow-500/50 border-2";
   };
 
-  console.log("Droppable area active:", isMyTurn, "Is over:", isOver);
-
   return (
     <div
       ref={setNodeRef}
@@ -88,134 +81,65 @@ function DroppablePlayArea({
       }}
       data-droppable-id="play-area"
     >
-      {/* Spotlight effect for drop area */}
-      <div
-        className={`
-        absolute inset-0 bg-radial-gradient from-transparent 
-        ${
-          isOver
-            ? "via-yellow-500/5 to-yellow-500/20"
-            : isMyTurn
-            ? "via-green-500/5 to-green-500/10"
-            : "to-transparent"
-        } 
-        transition-opacity duration-300
-      `}
-      />
-
       {children}
-
-      {isTrickEmpty && !isOver && (
-        <div
-          className={`
-          text-center absolute inset-0 flex flex-col items-center justify-center
-          ${isMyTurn ? "text-green-200/90" : "text-yellow-200/70"}
-        `}
-        >
-          {isMyTurn ? (
-            <>
-              <div className="text-lg font-semibold mb-1">Your Turn</div>
-              <div className="text-sm italic">Drag a card here to play</div>
-            </>
-          ) : (
-            <div className="text-sm italic">Cards played will appear here</div>
-          )}
-        </div>
-      )}
-
-      {isOver && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-sm rounded-xl">
-          <div className="text-yellow-300 font-bold text-xl animate-bounce">
-            Drop to Play
-          </div>
-          <div className="text-yellow-200/80 text-xs mt-1">
-            Release to play this card
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 export default function PlayArea({ room, mySeat }: PlayAreaProps) {
-  // Determine if it's the current player's turn
   const currentPlayer = room.players.find((p) => p.seat === room.currentPlayer);
-  const isMyTurn = currentPlayer && room.currentPlayer === mySeat;
+  const isMyTurn = currentPlayer?.seat === mySeat;
 
   return (
-    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center touch-none">
-      {/* Play area container */}
-      <div className="w-[70%] h-48 md:w-72 md:h-48 relative">
-        {/* Droppable area */}
-        <DroppablePlayArea
-          isTrickEmpty={room.currentTrick.length === 0}
-          isMyTurn={!!isMyTurn}
-        >
+    <DroppablePlayArea isMyTurn={isMyTurn}>
+      <div className="w-full h-full relative">
+        {/* Stacked tricks */}
+        {room.stackedTricks && room.stackedTricks.length > 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            {room.currentTrick.map(({ card, seat }, index) => {
-              const player = room.players.find((p) => p.seat === seat);
-              const isTeamOne = seat === 1 || seat === 3;
-              const teamColor = isTeamOne
-                ? "bg-blue-500/30 border-blue-500"
-                : "bg-green-500/30 border-green-500";
-              const nameBgColor = isTeamOne
-                ? "bg-blue-900/80"
-                : "bg-green-900/80";
-
-              const positionIndex = (seat - mySeat + 4) % 4;
-              const positionClass = `absolute ${cardPositions[positionIndex]}`;
-
-              return (
-                <div
-                  key={`${card.id}-${seat}`}
-                  className={`flex flex-col items-center animate-fade-in ${positionClass}`}
-                  style={{
-                    // Stagger the animation delay based on the order cards were played
-                    animationDelay: `${index * 0.15}s`,
-                    // Add a subtle shadow based on team color
-                    filter: `drop-shadow(0 2px 4px ${
-                      isTeamOne
-                        ? "rgba(37, 99, 235, 0.5)"
-                        : "rgba(5, 150, 105, 0.5)"
-                    })`,
-                  }}
-                >
-                  <Image
-                    src={`/cards/${card.rank}${card.suit[0].toUpperCase()}.png`}
-                    alt={getCardDisplayName(card)}
-                    width={70}
-                    height={100}
-                    className={`rounded-lg shadow-xl border-2 ${teamColor}`}
-                  />
-                  <div
-                    className={`${nameBgColor} text-center px-2 py-1 rounded-md mt-1 min-w-[70px] border border-gray-700 text-shadow`}
-                  >
-                    <span className="text-white text-xs font-medium">
-                      {player?.name || `Seat ${seat}`}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {room.stackedTricks.map((trick, trickIndex) => (
+              <div
+                key={`stacked-trick-${trickIndex}`}
+                className="absolute"
+                style={{
+                  transform: `translate(${trickIndex * 2}px, ${
+                    trickIndex * 2
+                  }px)`,
+                }}
+              >
+                <Image
+                  src="/cards/back.png"
+                  alt="Stacked Card"
+                  width={80}
+                  height={112}
+                  className="rounded-md shadow-lg"
+                />
+              </div>
+            ))}
           </div>
-        </DroppablePlayArea>
-      </div>
-
-      {/* Game status indicators (Trump & Turn) */}
-      <div className="mt-4 flex flex-col items-center">
-        {room.gameState.trump ? (
-          <div className="flex items-center gap-2 bg-black/70 px-3 py-1.5 rounded-md border border-yellow-700 shadow-lg">
-            <span className="text-yellow-200 text-sm">Trump:</span>
-            <span className="font-bold text-white">{room.gameState.trump}</span>
-          </div>
-        ) : (
-          <span className="text-yellow-200/80 text-xs tracking-wider">
-            Play Area
-          </span>
         )}
 
-        {/* Remove the player turn indicator here - it's now in the player hand component */}
+        {/* Current trick */}
+        {room.currentTrick.map(({ card, seat }) => {
+          const positionIndex = (seat - mySeat + 4) % 4;
+          const positionStyle = cardPositions[positionIndex];
+          const cardDisplayName = getCardDisplayName(card);
+
+          return (
+            <div
+              key={card.id}
+              className={`absolute transform transition-all duration-300 ${positionStyle}`}
+            >
+              <Image
+                src={`/cards/${cardDisplayName}.png`}
+                alt={card.id}
+                width={80}
+                height={112}
+                className="rounded-md shadow-lg"
+              />
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </DroppablePlayArea>
   );
 }

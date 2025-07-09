@@ -148,24 +148,34 @@ export default function setupSocketIO(server) {
 
         const playedCard = player.hand[cardIndex];
 
-        // --- DEHLA PAKAD GAME LOGIC ---
+        // --- DEHLA PAKAD GAME LOGIC (Strict Suit Following & Trump Setting) ---
         const leadSuit =
           room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
 
-        if (leadSuit && playedCard.suit !== leadSuit) {
-          const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit);
-          if (hasLeadSuit) {
-            return socket.emit(
-              "error",
-              `You must follow the suit: ${leadSuit}`
-            );
-          }
-
-          // If trump isn't set yet, this card sets it.
-          if (!room.gameState.trump) {
-            room.gameState.trump = playedCard.suit;
-            room.gameState.trumpJustSet = true; // Flag to deal cards after trick
-            console.log(`Trump suit has been set to: ${room.gameState.trump}`);
+        if (leadSuit) {
+          // A lead suit exists for this trick.
+          if (playedCard.suit !== leadSuit) {
+            // Player is trying to play an off-suit card.
+            // Check if they have any card of the lead suit.
+            const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit);
+            if (hasLeadSuit) {
+              // If they have a card of the lead suit, they MUST play it.
+              console.log(
+                `Player ${player.seat} illegally played ${playedCard.id}. Must follow suit ${leadSuit}.`
+              );
+              return socket.emit(
+                "error",
+                `You must follow the suit: ${leadSuit}`
+              );
+            }
+            // This is a valid off-suit play. If trump isn't set, this card sets it.
+            if (!room.gameState.trump) {
+              room.gameState.trump = playedCard.suit;
+              room.gameState.trumpJustSet = true; // Flag to deal cards after trick
+              console.log(
+                `Trump suit has been set to: ${room.gameState.trump}`
+              );
+            }
           }
         }
         // --- END OF GAME LOGIC ---
@@ -192,17 +202,72 @@ export default function setupSocketIO(server) {
           );
           console.log("Trick completed, winner:", trickWinnerSeat);
 
-          // Save the completed trick
-          const completedTrick = [...room.currentTrick];
+          const completedTrick = {
+            winner: trickWinnerSeat,
+            cards: [...room.currentTrick],
+          };
 
-          // Wait before clearing the trick
-          setTimeout(() => {
-            room.tricks.push({
-              winner: trickWinnerSeat,
-              cards: completedTrick,
+          // --- NEW RULE: CONSECUTIVE WINS ---
+          // Check if this is the last trick of the game (13 total tricks)
+          const isLastTrick =
+            room.tricks.length + room.stackedTricks.length === 12;
+
+          if (
+            trickWinnerSeat === room.gameState.lastTrickWinnerSeat ||
+            isLastTrick
+          ) {
+            // Consecutive win OR last trick: Collect the stack
+            console.log(
+              `Player ${trickWinnerSeat} wins the stack. Consecutive: ${
+                trickWinnerSeat === room.gameState.lastTrickWinnerSeat
+              }, Last Trick: ${isLastTrick}`
+            );
+
+            const winnerTeam =
+              trickWinnerSeat === 1 || trickWinnerSeat === 3
+                ? "team1"
+                : "team2";
+            const tricksToAward = [...room.stackedTricks, completedTrick];
+
+            // Add to team's captured tricks
+            room.tricks.push(...tricksToAward);
+
+            // Update scores
+            tricksToAward.forEach((trick) => {
+              room.gameState.scores[winnerTeam].tricks += 1;
+              trick.cards.forEach((c) => {
+                if (c.card.rank === "10") {
+                  room.gameState.scores[winnerTeam].tens += 1;
+                }
+              });
             });
+
+            room.stackedTricks = []; // Clear the stack
+            room.gameState.lastTrickWinnerSeat = null; // Reset for next stack
+          } else {
+            // Not a consecutive win: Add to stack
+            console.log(
+              `Player ${trickWinnerSeat} wins trick, but not stack. Stacking.`
+            );
+            room.stackedTricks.push(completedTrick);
+            room.gameState.lastTrickWinnerSeat = trickWinnerSeat;
+          }
+          // --- END OF NEW RULE ---
+
+          // Wait before clearing the trick on the table
+          setTimeout(() => {
             room.currentTrick = [];
             room.currentPlayer = trickWinnerSeat;
+
+            // Handle end of game
+            if (isLastTrick) {
+              room.gameState.status = "finished";
+              console.log(
+                "Game finished. Final Scores:",
+                room.gameState.scores
+              );
+              // Final update will be sent, no further actions needed here
+            }
 
             // If trump was just set, deal remaining cards
             if (room.gameState.trumpJustSet) {

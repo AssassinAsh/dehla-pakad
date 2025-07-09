@@ -40,6 +40,7 @@ export interface Room {
   currentTrick: PlayedCard[];
   currentPlayer: number; // seat number
   tricks: Trick[];
+  stackedTricks: Trick[];
   gameStarted: boolean;
   createdAt: Date;
   dealerSeat?: number;
