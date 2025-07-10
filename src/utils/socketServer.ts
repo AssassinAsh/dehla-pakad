@@ -187,6 +187,20 @@ function setupSocketIO(server: any) {
         // Remove card from hand and add to trick
         player.hand = player.hand.filter((c) => c.id !== cardId);
         room.currentTrick.push({ card, seat: player.seat });
+
+        // --- TRUMP SETTING LOGIC ---
+        let trumpJustSet = false;
+        if (leadSuit && card.suit !== leadSuit) {
+          // Player is playing off-suit
+          const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit);
+          if (!hasLeadSuit && !room.gameState.trump) {
+            // This play sets the trump
+            room.gameState.trump = card.suit;
+            trumpJustSet = true;
+          }
+        }
+        // --- END TRUMP LOGIC ---
+
         // If trick complete (each player played)
         if (room.currentTrick.length === room.players.length) {
           const leadSuitCompleted = room.currentTrick[0].card.suit;
@@ -223,6 +237,36 @@ function setupSocketIO(server: any) {
           room.gameState.leadSeat = winnerSeat;
           room.gameState.lastTrickWinner = winnerSeat;
           io.to(roomId).emit("trickCompleted", trickObj);
+
+          // --- DEAL REMAINING CARDS AFTER TRUMP IS SET ---
+          if (
+            trumpJustSet &&
+            room.gameState.remainingDeck &&
+            room.gameState.remainingDeck.length > 0
+          ) {
+            // Animated dealing
+            const deck = [...room.gameState.remainingDeck];
+            room.gameState.remainingDeck = [];
+            const dealRemainingCards = () => {
+              if (deck.length > 0) {
+                // Deal one card to each player in order
+                for (let i = 0; i < room.players.length; i++) {
+                  if (deck.length > 0) {
+                    const p = room.players[i];
+                    p.hand.push(deck.shift()!);
+                  }
+                }
+                RoomManager.updateRoom(roomId, room);
+                io.to(roomId).emit("roomUpdated", room);
+                setTimeout(dealRemainingCards, 300); // 300ms delay per round of dealing
+              } else {
+                RoomManager.updateRoom(roomId, room);
+                io.to(roomId).emit("roomUpdated", room);
+              }
+            };
+            dealRemainingCards();
+          }
+          // --- END DEAL REMAINING CARDS ---
         } else {
           // Move to next player
           const currentPlayerIndex = room.players.findIndex(

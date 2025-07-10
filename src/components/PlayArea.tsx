@@ -119,23 +119,42 @@ export default function PlayArea({ room, mySeat }: PlayAreaProps) {
         )}
 
         {/* Current trick */}
-        {room.currentTrick.map(({ card, seat }) => {
+        {room.currentTrick.map(({ card, seat }, idx) => {
           const positionIndex = (seat - mySeat + 4) % 4;
           const positionStyle = cardPositions[positionIndex];
           const cardDisplayName = getCardDisplayName(card);
+          const isLatest = idx === room.currentTrick.length - 1;
 
           return (
             <div
               key={card.id}
-              className={`absolute transform transition-all duration-300 ${positionStyle}`}
+              className={`absolute transform transition-all duration-500 ${positionStyle} ${
+                isLatest ? "z-20" : "z-10"
+              }`}
             >
-              <Image
-                src={`/cards/${cardDisplayName}.png`}
-                alt={card.id}
-                width={80}
-                height={112}
-                className="rounded-md shadow-lg"
-              />
+              <div
+                className={`card rounded-md shadow-lg transition-all duration-300 ${
+                  isLatest ? "ring-4 ring-yellow-400 animate-fly-in" : ""
+                }`}
+                style={{
+                  width: 80,
+                  height: 112,
+                  background: "#fff",
+                  position: "relative",
+                  boxShadow: isLatest
+                    ? "0 0 16px 4px rgba(251, 192, 45, 0.5)"
+                    : "0 2px 8px rgba(0,0,0,0.15)",
+                }}
+              >
+                <Image
+                  src={`/cards/${cardDisplayName}.png`}
+                  alt={card.id}
+                  width={80}
+                  height={112}
+                  className="rounded-md"
+                  priority={isLatest}
+                />
+              </div>
             </div>
           );
         })}

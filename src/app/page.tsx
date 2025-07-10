@@ -120,6 +120,10 @@ export default function Home() {
   return (
     <>
       <main className="flex min-h-screen flex-col md:flex-row items-center justify-center p-4 md:p-12 lg:p-16 bg-[#f6e7c6] text-green-950 relative">
+        {/* Game-like background overlay */}
+        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-green-200 via-green-100 to-yellow-100">
+          <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-10 mix-blend-multiply"></div>
+        </div>
         {/* Logo and Title section */}
         <div className="text-center mb-10 md:mb-0 md:w-1/2 md:flex md:flex-col md:justify-center md:items-center">
           <div className="flex flex-col items-center mb-4 md:mb-8 animate-fade-in-up">
@@ -141,6 +145,15 @@ export default function Home() {
 
         {/* Room Creation & Join */}
         <div className="w-full max-w-md md:w-1/2 md:max-w-lg bg-white p-6 md:p-8 rounded-2xl shadow-2xl border border-green-800/20 space-y-6 md:space-y-8 md:ml-8 lg:ml-16">
+          {/* How to Play button */}
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setIsRulesModalOpen(true)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-green-900 font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 border-2 border-yellow-500"
+            >
+              How to Play
+            </button>
+          </div>
           <div>
             <h2 className="text-2xl font-bold text-center text-green-800 mb-6">
               Join or Create a Room
@@ -162,7 +175,10 @@ export default function Home() {
           </div>
           <div className="border-t border-green-100 pt-4 sm:pt-6">
             {showJoinRoom ? (
-              <div className="animate-fade-in">
+              <div
+                className="animate-fade-in fixed md:static left-0 right-0 bottom-0 md:bottom-auto z-40 bg-white md:bg-transparent rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none p-6 md:p-0 border-t-2 border-green-200 md:border-none transition-all duration-300"
+                style={{ maxWidth: "100vw" }}
+              >
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold text-green-800">
                     Join with Room ID
@@ -219,6 +235,11 @@ export default function Home() {
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
       />
+      {/* Footer */}
+      <footer className="w-full text-center text-xs text-green-900/70 mt-8 mb-2">
+        © {new Date().getFullYear()} Dehla Pakad. Made with ♥ for card game
+        lovers.
+      </footer>
     </>
   );
 }

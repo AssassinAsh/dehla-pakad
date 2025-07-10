@@ -36,6 +36,7 @@ export interface PlayedCard {
 export interface Room {
   id: string;
   players: Player[];
+  host?: string;
   gameState: GameState;
   currentTrick: PlayedCard[];
   currentPlayer: number; // seat number

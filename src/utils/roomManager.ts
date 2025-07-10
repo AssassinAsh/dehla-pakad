@@ -8,6 +8,7 @@ export class RoomManager {
     const room: Room = {
       id: roomId,
       players: [firstPlayer],
+      host: firstPlayer.name,
       gameState: {
         phase: "waiting",
         currentRound: 0,
@@ -42,6 +43,14 @@ export class RoomManager {
     // Check if seat is already taken
     const seatTaken = room.players.some((p) => p.seat === player.seat);
     if (seatTaken) {
+      return false;
+    }
+
+    // Prevent same user (by id or name) from taking multiple seats
+    const alreadySeated = room.players.some(
+      (p) => p.id === player.id || p.name === player.name
+    );
+    if (alreadySeated) {
       return false;
     }
 

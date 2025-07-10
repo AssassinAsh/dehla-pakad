@@ -1,28 +1,106 @@
 @import "tailwindcss";
 
+/* --- Mobile-first base styles for Dehla Pakad --- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-table-bg: #20603d;
+  --color-table-accent: #388e3c;
+  --color-card-bg: #fff;
+  --color-card-border: #bdbdbd;
+  --color-primary: #388e3c;
+  --color-secondary: #fbc02d;
+  --color-accent: #d32f2f;
+  --color-avatar-bg: #263238;
+  --color-avatar-active: #fbc02d;
+  --font-main: 'Montserrat', 'Segoe UI', Arial, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-main);
+  background: radial-gradient(circle at 60% 40%, var(--color-table-bg) 60%, var(--color-table-accent) 100%);
+  min-height: 100vh;
+  margin: 0;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Make everything mobile-first and touch-friendly */
+html {
+  font-size: 16px;
+  touch-action: manipulation;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Utility classes for spacing and layout */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rounded {
+  border-radius: 12px;
+}
+
+.shadow {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* Card styles */
+.card {
+  background: var(--color-card-bg);
+  border: 2px solid var(--color-card-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+  color: #222;
+  transition: transform 0.15s;
+}
+.card.playable {
+  outline: 2px solid var(--color-secondary);
+  cursor: pointer;
+  z-index: 2;
+}
+.card:active {
+  transform: scale(0.97);
+}
+
+/* Avatar styles */
+.avatar {
+  background: var(--color-avatar-bg);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #fff;
+  border: 3px solid transparent;
+  transition: border 0.2s;
+}
+.avatar.active {
+  border-color: var(--color-avatar-active);
+  box-shadow: 0 0 12px 2px var(--color-avatar-active);
+}
+
+/* Responsive helpers */
+@media (max-width: 600px) {
+  html {
+    font-size: 15px;
+  }
+  .avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 0.95rem;
+  }
+  .card {
+    font-size: 0.95rem;
+    border-radius: 8px;
+  }
 }
 
 /* Custom card styles */

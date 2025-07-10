@@ -29,28 +29,6 @@ export default function GameTable({
 }: GameTableProps) {
   const isDealing = room.gameState.dealing;
 
-  // Helper function to get team styling based on seat number
-  const getTeamStyle = (seat: number) => {
-    // Team 1: Seats 1 & 3
-    if (seat === 1 || seat === 3) {
-      return {
-        card: "bg-blue-500/30 border-blue-500",
-        background: "bg-blue-900",
-        label: "text-blue-200",
-        border: "border-blue-600",
-        text: "text-blue-200",
-      };
-    }
-    // Team 2: Seats 2 & 4
-    return {
-      card: "bg-green-500/30 border-green-500",
-      background: "bg-green-900",
-      label: "text-green-200",
-      border: "border-green-600",
-      text: "text-green-200",
-    };
-  };
-
   // Find the local player's seat
   const currentPlayer = room.players.find((p) => p.id === currentPlayerId);
   const mySeat = currentPlayer?.seat || 1;
@@ -79,7 +57,7 @@ export default function GameTable({
         {/* Subtle inner shadow */}
         <div className="absolute inset-0 shadow-inner rounded-xl pointer-events-none"></div>
 
-        {/* Top bar for scores and trump */}
+        {/* Top bar for scores only (remove trump from here) */}
         <div className="absolute top-0 left-0 w-full flex justify-between items-start z-10 transform -translate-y-5 md:-translate-y-7 px-4">
           {/* Team 1 Score */}
           <div className="bg-gradient-to-b from-blue-800 to-blue-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-blue-600 shadow-lg text-center">
@@ -93,20 +71,6 @@ export default function GameTable({
             </div>
           </div>
 
-          {/* Trump Indicator */}
-          {room.gameState.trump && (
-            <div className="bg-gradient-to-b from-purple-800 to-purple-900 text-white text-xs md:text-sm px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-purple-600 shadow-lg flex flex-col items-center">
-              <span className="font-bold">Trump</span>
-              <span
-                className={`font-bold text-3xl leading-none ${getSuitColor(
-                  room.gameState.trump
-                )}`}
-              >
-                {getSuitSymbol(room.gameState.trump)}
-              </span>
-            </div>
-          )}
-
           {/* Team 2 Score */}
           <div className="bg-gradient-to-b from-green-800 to-green-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-green-600 shadow-lg text-center">
             <div className="font-bold">Team 2 (2&4)</div>
@@ -119,6 +83,24 @@ export default function GameTable({
             </div>
           </div>
         </div>
+
+        {/* Trump Indicator - premium badge style */}
+        {room.gameState.trump && (
+          <div className="absolute top-2 right-[22%] z-30 flex flex-col items-center">
+            <div className="flex flex-col items-center bg-gradient-to-b from-purple-700 to-purple-900 border-2 border-yellow-400 shadow-[0_0_16px_4px_rgba(251,191,36,0.25)] rounded-full px-4 py-2 min-w-[56px]">
+              <span
+                className={`text-3xl font-extrabold drop-shadow-sm ${getSuitColor(
+                  room.gameState.trump
+                )}`}
+              >
+                {getSuitSymbol(room.gameState.trump)}
+              </span>
+              <span className="text-xs font-bold text-yellow-200 mt-1 tracking-wide uppercase">
+                Trump
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Trump Card Display - More prominent when just set */}
         {room.gameState.trump && room.gameState.trumpJustSet && (
@@ -198,61 +180,57 @@ export default function GameTable({
           <PlayArea room={room} mySeat={mySeat} />
         </div>
 
-        {/* Players seated around the table */}
-        {seatOrder.map((seat, index) => {
+        {/* Player Avatars at 4 sides */}
+        {seatOrder.map((seat, idx) => {
           const player = room.players.find((p) => p.seat === seat);
-          const teamStyle = getTeamStyle(seat);
-          const positionStyle = seatPositions[index].style;
-          const isCurrentPlayer = player?.id === currentPlayerId;
-
+          const isActive = room.currentPlayer === seat;
           return (
             <div
               key={seat}
-              className={`${positionStyle} z-10 flex flex-col items-center select-none`}
-              onClick={() => onSeatClick && !player && onSeatClick(seat)}
+              className={`${seatPositions[idx].style} z-20 flex flex-col items-center select-none`}
+              style={{ minWidth: 60 }}
+              onClick={() => !player && onSeatClick && onSeatClick(seat)}
             >
-              {/* Seat rectangle */}
-              <div
-                className={`w-20 md:w-28 px-2 md:px-3 py-1.5 md:py-2.5 rounded-lg flex items-center justify-center border-l-2 md:border-l-4 shadow-xl transition-all duration-200 text-sm md:text-base ${
-                  isCurrentPlayer
-                    ? "border-yellow-400 bg-gradient-to-r from-blue-900 to-blue-800 ring-2 ring-yellow-300 ring-opacity-50"
-                    : player
-                    ? "border-yellow-600 bg-gradient-to-r from-yellow-900 to-amber-950"
-                    : "border-gray-500 bg-gradient-to-r from-gray-800 to-gray-900 opacity-80 hover:opacity-100 hover:from-gray-700 cursor-pointer"
-                }`}
-              >
-                {player ? (
-                  <div className="flex flex-col items-center text-center">
-                    <span className="text-sm md:text-base font-bold truncate text-white max-w-[4.5rem] md:max-w-[5rem]">
-                      {player.name}
-                    </span>
-                    <div className="flex items-center mt-0.5 md:mt-1">
-                      <span className="text-[10px] md:text-xs text-yellow-200 font-medium">
-                        {player.hand.length} cards
+              {player ? (
+                <>
+                  <div
+                    className={`avatar${
+                      isActive ? " active" : ""
+                    } shadow-lg mb-1 transition-all duration-300`}
+                    title={player.name}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Player ${player.name}`}
+                  >
+                    {player.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-xs font-semibold text-white drop-shadow-sm text-center px-1">
+                    {player.name}
+                    {dealerSeat === seat && (
+                      <span className="ml-1 text-yellow-300 font-bold">
+                        (D)
                       </span>
-                      {isCurrentPlayer && (
-                        <span className="ml-1 text-xs text-green-400">▶</span>
-                      )}
-                    </div>
+                    )}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="avatar bg-gray-700 opacity-70 mb-1 border-dashed border-2 border-gray-400 flex items-center justify-center cursor-pointer hover:bg-gray-600 hover:opacity-100 transition-all duration-200"
+                    title="Join this seat"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Join seat ${seat}`}
+                  >
+                    +
                   </div>
-                ) : (
-                  <div className="text-center">
-                    <span className="text-sm text-gray-300">Seat {seat}</span>
-                    <div className="text-xs text-gray-400 mt-1">
-                      Click to join
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Small team indicator */}
-              {player && (
-                <div
-                  className={`${teamStyle.background} text-xs px-2 py-0.5 rounded-b-md mt-1 text-white opacity-80`}
-                >
-                  Team {seat === 1 || seat === 3 ? "1" : "2"}
-                </div>
+                  <span className="text-xs font-semibold text-gray-200 drop-shadow-sm text-center px-1">
+                    Empty Seat
+                  </span>
+                </>
               )}
+              {/* Show seat number for clarity on mobile */}
+              <span className="text-[10px] text-gray-300">Seat {seat}</span>
             </div>
           );
         })}

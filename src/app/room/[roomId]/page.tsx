@@ -323,16 +323,18 @@ export default function RoomPage() {
           />
 
           {/* Start Game Button - Fixed position */}
-          {!room.gameStarted && room.players.length === 4 && (
-            <div className="flex justify-center mt-4">
-              <button
-                onClick={startGame}
-                className="bg-gradient-to-r from-yellow-500 to-amber-500 text-gray-900 font-bold py-3 px-8 rounded-lg hover:from-yellow-400 hover:to-amber-400 transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-yellow-600"
-              >
-                Start Game / Deal Cards
-              </button>
-            </div>
-          )}
+          {!room.gameStarted &&
+            room.players.length === 4 &&
+            room.host === currentPlayer?.name && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={startGame}
+                  className="bg-gradient-to-r from-yellow-500 to-amber-500 text-gray-900 font-bold py-3 px-8 rounded-lg hover:from-yellow-400 hover:to-amber-400 transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-yellow-600"
+                >
+                  Start Game / Deal Cards
+                </button>
+              </div>
+            )}
         </div>
 
         {/* Player Hand (always at bottom, floating) */}
