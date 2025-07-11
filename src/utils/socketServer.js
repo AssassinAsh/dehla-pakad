@@ -79,7 +79,22 @@ export default function setupSocketIO(server) {
           io.to(roomId).emit("roomUpdated", room); // Broadcast to all in room
           callback(true);
         } else {
-          callback(false);
+          // Check if duplicate name
+          const room = RoomManager.getRoom(roomId);
+          const normalizedName = playerName.trim().toLowerCase();
+          const nameExists =
+            room &&
+            room.players.some(
+              (p) => p.name.trim().toLowerCase() === normalizedName
+            );
+          if (nameExists) {
+            callback(
+              false,
+              "A player with this name already exists in the room. Please choose a different name."
+            );
+          } else {
+            callback(false);
+          }
         }
       } catch (error) {
         console.error("Error joining room:", error);

@@ -13,6 +13,7 @@ export default function Home() {
   const [showJoinRoom, setShowJoinRoom] = useState(false); // State for showing join room dialog
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
   const [joinRoomId, setJoinRoomId] = useState("");
+  const [joinRoomError, setJoinRoomError] = useState("");
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
 
@@ -99,17 +100,38 @@ export default function Home() {
 
   const joinRoom = () => {
     if (!playerName.trim()) {
-      alert("Please enter your name");
+      setJoinRoomError("Please enter your name");
       return;
     }
     if (!joinRoomId.trim()) {
-      alert("Please enter a room ID");
+      setJoinRoomError("Please enter a room ID");
       return;
     }
     const roomUrl = `/room/${joinRoomId}?name=${encodeURIComponent(
       playerName
     )}`;
-    router.push(roomUrl);
+    // Try to join room by navigating, but listen for error via callback
+    if (socketRef.current) {
+      socketRef.current.emit(
+        "joinRoom",
+        joinRoomId,
+        playerName,
+        null,
+        (success: boolean, errorMsg?: string) => {
+          if (success) {
+            router.push(roomUrl);
+          } else if (errorMsg) {
+            setJoinRoomError(errorMsg);
+          } else {
+            setJoinRoomError(
+              "Failed to join room. Please check the Room ID and try again."
+            );
+          }
+        }
+      );
+    } else {
+      setJoinRoomError("Connection error. Please refresh and try again.");
+    }
   };
 
   return (
@@ -171,19 +193,27 @@ export default function Home() {
               <div
                 className="animate-fade-in fixed md:static left-0 right-0 bottom-0 md:bottom-auto z-40 bg-white md:bg-transparent rounded-t-2xl md:rounded-none shadow-2xl md:shadow-none p-6 md:p-0 border-t-2 border-green-200 md:border-none transition-all duration-300"
                 style={{ maxWidth: "100vw" }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="join-room-title"
               >
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-green-800">
-                    Join with Room ID
+                  <h3
+                    id="join-room-title"
+                    className="text-lg font-semibold text-green-800"
+                  >
+                    Join a Room
                   </h3>
                   <button
                     onClick={() => {
                       setShowJoinRoom(false);
                       setJoinRoomId("");
+                      setPlayerName("");
                     }}
-                    className="text-green-800 hover:text-green-600"
+                    className="text-green-800 hover:text-green-600 text-2xl font-bold"
+                    aria-label="Close join room dialog"
                   >
-                    &times; Cancel
+                    &times;
                   </button>
                 </div>
                 <input
@@ -191,7 +221,15 @@ export default function Home() {
                   placeholder="Enter Room ID"
                   value={joinRoomId}
                   onChange={(e) => setJoinRoomId(e.target.value)}
-                  className="w-full px-4 py-3 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition mb-4"
+                  className="w-full px-4 py-3 mb-4 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                  autoFocus
+                />
+                <input
+                  type="text"
+                  placeholder="Enter your name"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  className="w-full px-4 py-3 mb-4 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
                 />
                 <button
                   onClick={joinRoom}
@@ -200,6 +238,11 @@ export default function Home() {
                 >
                   Join Room
                 </button>
+                {joinRoomError && (
+                  <div className="mt-3 text-red-600 text-sm font-semibold text-center animate-fade-in">
+                    {joinRoomError}
+                  </div>
+                )}
               </div>
             ) : (
               <button

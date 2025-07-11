@@ -58,13 +58,6 @@ export default function RoomPage() {
     typeof window !== "undefined"
       ? `${window.location.origin}/room/${roomId}`
       : "";
-  const handleCopy = () => {
-    if (inviteUrl) {
-      navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   // Initialize Socket.IO client
   useEffect(() => {
@@ -96,9 +89,16 @@ export default function RoomPage() {
       setError("Connection to server failed. Please refresh.");
     });
 
+    // Listen for joinRoom callback errors
     socket.on("error", (message) => {
-      console.error("Received error from server:", message);
-      setError(message);
+      if (
+        typeof message === "string" &&
+        message.includes("already exists in the room")
+      ) {
+        setError(message);
+      } else {
+        setError(message);
+      }
     });
 
     // Join room for updates (server will add to socket.join on create/join events)
@@ -117,6 +117,39 @@ export default function RoomPage() {
       socket.disconnect();
     };
   }, [roomId, playerName]);
+
+  // Auto-join seat on page load if playerName is present and not already seated
+  useEffect(() => {
+    if (
+      playerName &&
+      room &&
+      socketRef.current &&
+      !room.players.some(
+        (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+      )
+    ) {
+      // Find first available seat
+      const takenSeats = room.players.map((p) => p.seat);
+      const availableSeat = [1, 2, 3, 4].find((s) => !takenSeats.includes(s));
+      if (availableSeat) {
+        socketRef.current.emit(
+          "joinRoom",
+          room.id,
+          playerName,
+          availableSeat,
+          (success: boolean, errorMsg?: string) => {
+            if (!success && errorMsg && errorMsg.includes("already exists")) {
+              setError(errorMsg);
+              // Instead of redirecting, clear the name param and show the modal
+              router.replace(`/room/${roomId}`);
+              setShowNameModal(true);
+              setNameInput("");
+            }
+          }
+        );
+      }
+    }
+  }, [playerName, room]);
 
   const joinSeat = (seatNumber: number) => {
     if (!playerName || !room || !socketRef.current) return;
@@ -208,6 +241,7 @@ export default function RoomPage() {
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (nameInput.trim()) {
+      setError(null); // Clear any previous error
       router.replace(
         `/room/${roomId}?name=${encodeURIComponent(nameInput.trim())}`
       );
@@ -308,6 +342,11 @@ export default function RoomPage() {
           <h2 className="text-2xl font-bold text-yellow-400 mb-4">
             Enter Your Name
           </h2>
+          {error && (
+            <div className="w-full mb-3 bg-red-700/80 text-white text-sm font-semibold rounded-lg px-3 py-2 text-center animate-fade-in-up border border-red-400">
+              {error}
+            </div>
+          )}
           <input
             type="text"
             value={nameInput}
@@ -405,62 +444,120 @@ export default function RoomPage() {
             </div>
           </div>
         )}
-        <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
-          {/* Header */}
-          <header className="flex justify-between items-center p-4 rounded-lg bg-black/30">
-            <div>
-              <h1 className="text-3xl font-bold text-yellow-400 [text-shadow:_0_2px_4px_rgba(0,0,0,0.5)]">
-                Room: {room.id.substring(0, 5)}...
-              </h1>
-              <p className="text-gray-300">
-                {room.players.length}/4 players ·{" "}
-                <span
-                  className={
-                    room.gameStarted ? "text-green-400" : "text-yellow-400"
-                  }
-                >
-                  {room.gameStarted ? "In Progress" : "Waiting for players..."}
-                </span>
-              </p>
-              {/* Invite Link */}
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={inviteUrl}
-                  readOnly
-                  className="bg-gray-700 text-yellow-200 px-2 py-1 rounded w-64 text-xs border border-gray-600 select-all"
-                  onFocus={(e) => e.target.select()}
-                />
-                <button
-                  onClick={handleCopy}
-                  className="bg-yellow-500 text-gray-900 font-bold px-3 py-1 rounded hover:bg-yellow-400 transition-colors text-xs"
-                >
-                  {copied ? "Copied!" : "Copy Link"}
-                </button>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsRulesModalOpen(true)}
-              className="bg-transparent border border-yellow-500 text-yellow-500 font-bold py-2 px-4 rounded-lg hover:bg-yellow-500 hover:text-gray-900 transition-colors flex items-center gap-2"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+        {/* Modern Header */}
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 px-4 md:px-8 py-2 md:py-4 bg-gradient-to-b from-black/70 to-transparent rounded-b-2xl shadow-lg mb-2 md:mb-4">
+          {/* Room ID Pill */}
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-yellow-400 text-gray-900 font-bold text-base shadow-md border-2 border-yellow-600 select-all">
+              <span className="tracking-widest">{room.id}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(room.id);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                className="ml-2 p-1 rounded-full bg-yellow-500 hover:bg-yellow-300 transition-colors"
+                aria-label="Copy Room ID"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              Show Rules
-            </button>
-          </header>
+                {copied ? (
+                  <svg
+                    className="w-4 h-4 text-green-700"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-4 h-4 text-gray-900"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15V5a2 2 0 012-2h10" />
+                  </svg>
+                )}
+              </button>
+            </span>
+          </div>
 
+          {/* Share Button (Web Share API on mobile, fallback to copy) */}
+          <button
+            onClick={async () => {
+              if (navigator.share) {
+                await navigator.share({
+                  title: "Join my Dehla Pakad room!",
+                  text: `Join my Dehla Pakad room: ${room.id}`,
+                  url: inviteUrl,
+                });
+              } else {
+                navigator.clipboard.writeText(inviteUrl);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold shadow-md border-2 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 transition-colors text-base min-w-[120px] justify-center"
+            aria-label="Share Room Link"
+          >
+            <svg
+              className="w-5 h-5 mr-1"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16 6l-4-4-4 4m4-4v16"
+              />
+            </svg>
+            <span>Share Room</span>
+            {copied && (
+              <span className="ml-2 text-green-700 font-semibold animate-fade-in">
+                Copied!
+              </span>
+            )}
+          </button>
+
+          {/* Show Rules FAB (mobile) or Icon Button (desktop) */}
+          <button
+            onClick={() => setIsRulesModalOpen(true)}
+            className="flex items-center justify-center w-20 h-14 md:w-auto md:h-auto rounded-full bg-gradient-to-br from-yellow-400 to-yellow-300 text-gray-900 font-bold shadow-2xl border-4 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 hover:text-gray-900 transition-all px-4 py-2 text-lg gap-2"
+            aria-label="Show Rules"
+            style={{ boxShadow: "0 6px 32px 0 rgba(251, 191, 36, 0.25)" }}
+          >
+            <svg
+              className="w-7 h-7 md:w-6 md:h-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span className="ml-1">Rules</span>
+          </button>
+        </header>
+        <main className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           {/* Table */}
           <GameTable
             room={room}
@@ -468,7 +565,6 @@ export default function RoomPage() {
             currentPlayerId={currentPlayer?.id}
             onSeatClick={joinSeat}
           />
-
           {/* Start Game Button - Fixed position */}
           {!room.gameStarted &&
             room.players.length === 4 &&
@@ -495,8 +591,7 @@ export default function RoomPage() {
                 />
               </div>
             )}
-        </div>
-
+        </main>
         {/* Player Hand (always at bottom, floating) */}
         {currentPlayer && (
           <PlayerHand

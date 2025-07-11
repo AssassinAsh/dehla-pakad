@@ -46,8 +46,10 @@ export class RoomManager {
     }
 
     // Prevent same user (by id or name) from taking multiple seats
+    const normalizedName = player.name.trim().toLowerCase();
     const alreadySeated = room.players.some(
-      (p) => p.id === player.id || p.name === player.name
+      (p) =>
+        p.id === player.id || p.name.trim().toLowerCase() === normalizedName
     );
     if (alreadySeated) {
       return false;
