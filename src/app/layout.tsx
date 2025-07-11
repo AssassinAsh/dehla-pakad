@@ -16,8 +16,7 @@ export const metadata = {
   title: "Dehla Pakad",
   description: "Play Dehla Pakad online with friends!",
   icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
+    apple: "/icon.jpg",
   },
   appleWebApp: {
     capable: true,
