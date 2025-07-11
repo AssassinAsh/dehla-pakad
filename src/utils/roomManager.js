@@ -22,6 +22,7 @@ export class RoomManager {
       currentTrick: [],
       stackedTricks: [], // For the new rule
       tricks: [], // This will now store tricks captured by teams
+      replayVotes: new Set(), // Track players who want to replay
     };
 
     rooms.set(roomId, room);
@@ -140,5 +141,26 @@ export class RoomManager {
       room.gameState.dealing = dealing;
       rooms.set(roomId, room);
     }
+  }
+
+  static addReplayVote(roomId, playerName) {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.replayVotes.add(playerName);
+      rooms.set(roomId, room);
+    }
+  }
+
+  static clearReplayVotes(roomId) {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.replayVotes = new Set();
+      rooms.set(roomId, room);
+    }
+  }
+
+  static getReplayVotes(roomId) {
+    const room = rooms.get(roomId);
+    return room ? room.replayVotes : new Set();
   }
 }

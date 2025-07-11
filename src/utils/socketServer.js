@@ -421,6 +421,53 @@ export default function setupSocketIO(server) {
       socket.emit("roomsList", roomsList);
     });
 
+    // Handle player replay requests
+    socket.on("playerReplay", (roomId) => {
+      try {
+        const room = RoomManager.getRoom(roomId);
+        if (!room) return;
+        // Find player by socket.id
+        const player = room.players.find((p) => p.id === socket.id);
+        if (!player) return;
+        RoomManager.addReplayVote(roomId, player.name);
+        const replayVotes = RoomManager.getReplayVotes(roomId);
+        // If all 4 players have voted, reset the game
+        if (replayVotes.size === 4) {
+          // Reset game state
+          RoomManager.clearReplayVotes(roomId);
+          room.gameStarted = false;
+          room.gameState = {
+            status: "waiting",
+            trump: null,
+            trumpJustSet: false,
+            scores: {
+              team1: { tricks: 0, tens: 0 },
+              team2: { tricks: 0, tens: 0 },
+            },
+            lastTrickWinnerSeat: null,
+          };
+          room.deck = [];
+          room.currentTrick = [];
+          room.stackedTricks = [];
+          room.tricks = [];
+          // Optionally rotate dealer/first player
+          room.currentPlayer = room.players[0].seat;
+          RoomManager.updateRoom(roomId, room);
+          io.to(roomId).emit("roomUpdated", room);
+          // Start new game automatically
+          setTimeout(() => {
+            io.to(roomId).emit("gameStarted", room);
+            socket.emit("startGame", roomId);
+          }, 1000);
+        } else {
+          // Notify clients how many are ready
+          io.to(roomId).emit("replayVote", { count: replayVotes.size });
+        }
+      } catch (error) {
+        console.error("Error handling playerReplay:", error);
+      }
+    });
+
     // Handle disconnection
     socket.on("disconnect", () => {
       console.log("User disconnected:", socket.id);
