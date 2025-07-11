@@ -121,34 +121,32 @@ export default function Home() {
         </div>
         {/* Logo and Title section */}
         <div className="text-center mb-10 md:mb-0 md:w-1/2 md:flex md:flex-col md:justify-center md:items-center">
-          <div className="flex flex-col items-center mb-4 md:mb-8 animate-fade-in-up">
+          <div className="flex flex-col items-center mb-2 md:mb-8 animate-fade-in-up">
             <Image
               src="/logo.webp"
               alt="Dehla Pakad Logo"
-              width={280}
-              height={280}
+              width={120}
+              height={120}
               priority
+              className="w-24 h-24 sm:w-36 sm:h-36 md:w-56 md:h-56"
             />
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-green-800 tracking-wider [text-shadow:_0_2px_4px_rgba(0,0,0,0.2)]">
+          <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-green-800 tracking-wider [text-shadow:_0_2px_4px_rgba(0,0,0,0.2)] mb-1 sm:mb-2 md:mb-4">
             Dehla Pakad
           </h1>
-          <p className="text-gray-700 mt-2 text-base md:text-lg max-w-md">
+          <p className="text-xs sm:text-sm md:text-base text-gray-700 mt-1 sm:mt-2 md:mt-2 max-w-xs sm:max-w-md">
             The classic 4-player trick-taking card game.
           </p>
+          <button
+            onClick={() => setIsRulesModalOpen(true)}
+            className="mt-4 bg-yellow-400 hover:bg-yellow-300 text-green-900 font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 border-2 border-yellow-500"
+          >
+            How to Play
+          </button>
         </div>
 
         {/* Room Creation & Join */}
         <div className="w-full max-w-md md:w-1/2 md:max-w-lg bg-white p-6 md:p-8 rounded-2xl shadow-2xl border border-green-800/20 space-y-6 md:space-y-8 md:ml-8 lg:ml-16">
-          {/* How to Play button */}
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={() => setIsRulesModalOpen(true)}
-              className="bg-yellow-400 hover:bg-yellow-300 text-green-900 font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 border-2 border-yellow-500"
-            >
-              How to Play
-            </button>
-          </div>
           <div>
             <h2 className="text-2xl font-bold text-center text-green-800 mb-6">
               Join or Create a Room
