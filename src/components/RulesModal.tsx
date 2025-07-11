@@ -42,15 +42,31 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             The Deal &amp; Trump
           </h3>
           <ul className="list-disc pl-5 space-y-2">
-            <li>Each player is dealt 13 cards from a standard 52-card deck.</li>
             <li>
-              The game is played with a trump suit, which is determined at the
-              start of each round. The player who gets to choose the trump suit
-              is selected before the first round begins.
+              Each player is dealt 5 cards first, starting with the player to
+              the dealer&apos;s left and proceeding clockwise.
             </li>
             <li>
-              The trump-caller declares the trump suit after looking at their
-              cards.
+              The first 5 tricks (the &quot;5-card round&quot;) are played with
+              these cards.
+            </li>
+            <li>
+              There is no trump suit at the start of the round. The trump suit
+              is set dynamically: the first time a player cannot follow suit and
+              plays a card of a different suit (&quot;cuts&quot;), that suit
+              becomes trump for the rest of the round.
+            </li>
+            <li>
+              After the first 5 tricks are completed,{" "}
+              <strong>
+                or as soon as the trump suit is set (whichever comes first)
+              </strong>
+              , the dealer deals the remaining 8 cards to each player, so
+              everyone has 13 cards in total.
+            </li>
+            <li>
+              Once trump is set, it remains the most powerful suit for the
+              remainder of the round.
             </li>
           </ul>
 
@@ -64,15 +80,51 @@ const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
               a card of that suit.
             </li>
             <li>
-              If a player cannot follow suit, they can play any card, including
-              a powerful trump card.
+              If a player cannot follow suit, they may play any card. The first
+              time this happens, the suit of the card played becomes trump for
+              the round.
+            </li>
+            <li>
+              After trump is set, any card of the trump suit beats all cards of
+              other suits in a trick.
+            </li>
+            <li>
+              The first 5 tricks are played with the initial 5 cards. After
+              these are completed,{" "}
+              <strong>
+                or as soon as the trump suit is set (whichever comes first)
+              </strong>
+              , the remaining 8 cards are dealt and play continues as normal.
             </li>
             <li>
               The trick is won by the player who played the highest card of the
-              leading suit. However, if one or more trump cards were played, the
-              highest trump card wins the trick.
+              leading suit, unless a trump card is played, in which case the
+              highest trump wins.
             </li>
             <li>The winner of a trick leads the next one.</li>
+            <li>
+              Each trick is collected and stacked by the winner. Teams keep
+              their won tricks in a shared pile to track the number of tricks
+              and tens collected.
+            </li>
+            <li>
+              Tens (10s) are special cards. The main goal is to collect all four
+              tens as a team.
+            </li>
+          </ul>
+
+          <h3 className="text-xl font-semibold text-green-700">
+            Stacking &amp; Consecutive Wins
+          </h3>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>
+              If a single player wins two consecutive rounds, they win the stack
+              (all tricks collected so far).
+            </li>
+            <li>
+              If no player wins two consecutive rounds, the player who wins the
+              last round wins the whole stack.
+            </li>
           </ul>
 
           <h3 className="text-xl font-semibold text-green-700">
