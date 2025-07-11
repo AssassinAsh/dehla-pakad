@@ -215,14 +215,6 @@ export default function Home() {
         </div>
 
         {/* Rules Button */}
-        <div className="mt-8 md:absolute md:bottom-8 md:right-8">
-          <button
-            onClick={() => setIsRulesModalOpen(true)}
-            className="bg-transparent border-2 border-green-700 text-green-700 font-bold py-2 px-6 rounded-lg hover:bg-green-700 hover:text-white transition-colors shadow-md"
-          >
-            Show Rules
-          </button>
-        </div>
       </main>
 
       {/* Rules Modal */}
