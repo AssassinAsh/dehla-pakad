@@ -329,6 +329,54 @@ function setupSocketIO(server: any) {
       const roomsList = RoomManager.getRoomsList();
       socket.emit("roomsList", roomsList);
     });
+
+    // Handle player replay request
+    socket.on("playerReplay", (roomId: string) => {
+      const playerId = socket.id;
+      RoomManager.setPlayerWantsReplay(roomId, playerId, true);
+      const room = RoomManager.getRoom(roomId);
+      if (!room) return;
+      if (RoomManager.doAllPlayersWantReplay(roomId)) {
+        // Reset all wantsReplay flags
+        room.players.forEach((p) => (p.wantsReplay = false));
+        // Reset game state and deal cards (same as startGame logic)
+        const deck = shuffleDeck(createDeck());
+        const initialHands: Card[][] = room.players.map(() =>
+          deck.splice(0, 5)
+        );
+        room.players.forEach((player, idx) => {
+          player.hand = initialHands[idx];
+        });
+        const initialScores = {
+          team1: { tricks: 0, tens: 0 },
+          team2: { tricks: 0, tens: 0 },
+        };
+        const updatedGameState = {
+          phase: "playing" as const,
+          currentRound: (room.gameState.currentRound || 0) + 1,
+          scores: initialScores,
+          remainingDeck: deck,
+          trump: undefined,
+          leadSeat: room.players[0].seat,
+          lastTrickWinner: undefined,
+          consecutiveWins: 0,
+        };
+        RoomManager.updateRoom(roomId, {
+          gameStarted: true,
+          players: room.players,
+          currentTrick: [],
+          tricks: [],
+          currentPlayer: room.players[0].seat,
+          gameState: updatedGameState,
+        });
+        const updatedRoom = RoomManager.getRoom(roomId);
+        io.to(roomId).emit("gameStarted", updatedRoom);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
+      } else {
+        // Just update the room for UI
+        io.to(roomId).emit("roomUpdated", room);
+      }
+    });
   });
 
   // Emit updated room list to all clients in the lobby every 5 seconds

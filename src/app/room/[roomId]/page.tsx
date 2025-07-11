@@ -268,10 +268,20 @@ export default function RoomPage() {
   }, [room, currentPlayer]);
 
   const handleReplay = () => {
-    // Optionally emit a replay event or reload the room
-    window.location.reload();
+    // Notify backend that this player wants to replay
+    if (socketRef.current && room) {
+      socketRef.current.emit("playerReplay", room.id);
+    }
+    // Close the endgame modal and return to the table
+    setShowEndgameModal(false);
+    setEndgameResult(null);
   };
   const handleLeave = () => {
+    if (socketRef.current && room) {
+      socketRef.current.emit("leaveRoom", room.id);
+      socketRef.current.disconnect();
+    }
+    setCurrentPlayer(null);
     window.location.href = "/";
   };
 

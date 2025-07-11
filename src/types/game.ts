@@ -26,6 +26,7 @@ export interface Player {
   hand: Card[];
   isReady: boolean;
   isConnected: boolean;
+  wantsReplay?: boolean; // True if player has clicked replay
 }
 
 export interface PlayedCard {
@@ -36,7 +37,7 @@ export interface PlayedCard {
 export interface Room {
   id: string;
   players: Player[];
-  host?: string;
+  host?: string; // Name of the host/admin, can be reassigned or undefined if no players
   gameState: GameState;
   currentTrick: PlayedCard[];
   currentPlayer: number; // seat number

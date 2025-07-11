@@ -65,12 +65,20 @@ export class RoomManager {
       return false;
     }
 
+    // Check if the player being removed is the host
+    const removedPlayer = room.players.find((p) => p.id === playerId);
+    const isHostLeaving = removedPlayer && room.host === removedPlayer.name;
+
     room.players = room.players.filter((p) => p.id !== playerId);
 
     // If no players left, remove the room
     if (room.players.length === 0) {
       rooms.delete(roomId);
     } else {
+      // If host left, transfer host to next player (by join order)
+      if (isHostLeaving) {
+        room.host = room.players.length > 0 ? room.players[0].name : undefined;
+      }
       rooms.set(roomId, room);
     }
 
@@ -109,5 +117,25 @@ export class RoomManager {
       gameStarted: room.gameStarted,
       createdAt: room.createdAt,
     }));
+  }
+
+  static setPlayerWantsReplay(
+    roomId: string,
+    playerId: string,
+    wantsReplay: boolean
+  ): boolean {
+    const room = rooms.get(roomId);
+    if (!room) return false;
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) return false;
+    player.wantsReplay = wantsReplay;
+    rooms.set(roomId, room);
+    return true;
+  }
+
+  static doAllPlayersWantReplay(roomId: string): boolean {
+    const room = rooms.get(roomId);
+    if (!room || room.players.length !== 4) return false;
+    return room.players.every((p) => p.wantsReplay);
   }
 }
