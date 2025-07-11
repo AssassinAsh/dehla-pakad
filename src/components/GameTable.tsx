@@ -32,6 +32,7 @@ export default function GameTable({
   // Find the local player's seat
   const currentPlayer = room.players.find((p) => p.id === currentPlayerId);
   const mySeat = currentPlayer?.seat || 1;
+  const isSeated = !!currentPlayer;
 
   // Rotate seat order so local player is always at the bottom
   const seatOrder = [0, 1, 2, 3].map((i) => ((mySeat - 1 + i) % 4) + 1);
@@ -60,7 +61,7 @@ export default function GameTable({
         {/* Top bar for scores only (remove trump from here) */}
         <div className="absolute top-0 left-0 w-full flex justify-between items-start z-10 transform -translate-y-5 md:-translate-y-7 px-4">
           {/* Team 1 Score */}
-          <div className="bg-gradient-to-b from-blue-800 to-blue-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-blue-600 shadow-lg text-center">
+          <div className="bg-gradient-to-b from-blue-900 to-blue-700 text-blue-100 text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-blue-700 shadow-lg text-center font-bold">
             <div className="font-bold">Team 1 (1&3)</div>
             <div className="font-bold text-yellow-300 text-base md:text-lg">
               {team1Scores.tricks}
@@ -72,7 +73,7 @@ export default function GameTable({
           </div>
 
           {/* Team 2 Score */}
-          <div className="bg-gradient-to-b from-green-800 to-green-900 text-white text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-green-600 shadow-lg text-center">
+          <div className="bg-gradient-to-b from-green-900 to-green-700 text-green-100 text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-t-md border-t-2 border-l-2 border-r-2 border-green-700 shadow-lg text-center font-bold">
             <div className="font-bold">Team 2 (2&4)</div>
             <div className="font-bold text-yellow-300 text-base md:text-lg">
               {team2Scores.tricks}
@@ -84,21 +85,21 @@ export default function GameTable({
           </div>
         </div>
 
-        {/* Trump Indicator - premium badge style */}
+        {/* Trump Indicator - small square, pinned between top seat and right scorecard */}
         {room.gameState.trump && (
-          <div className="absolute top-2 right-[22%] z-30 flex flex-col items-center">
-            <div className="flex flex-col items-center bg-gradient-to-b from-purple-700 to-purple-900 border-2 border-yellow-400 shadow-[0_0_16px_4px_rgba(251,191,36,0.25)] rounded-full px-4 py-2 min-w-[56px]">
+          <div className="absolute top-0 right-[30%] z-30 flex flex-col items-center">
+            <div className="flex flex-col items-center bg-gradient-to-b from-purple-700 to-purple-900 border border-yellow-400 shadow-[0_0_8px_2px_rgba(251,191,36,0.18)] rounded-lg w-8 h-8 justify-center">
               <span
-                className={`text-3xl font-extrabold drop-shadow-sm ${getSuitColor(
+                className={`text-lg font-extrabold drop-shadow-sm ${getSuitColor(
                   room.gameState.trump
                 )}`}
               >
                 {getSuitSymbol(room.gameState.trump)}
               </span>
-              <span className="text-xs font-bold text-yellow-200 mt-1 tracking-wide uppercase">
-                Trump
-              </span>
             </div>
+            <span className="text-[10px] font-bold text-yellow-200 mt-1 tracking-wide uppercase leading-none">
+              Trump
+            </span>
           </div>
         )}
 
@@ -106,10 +107,15 @@ export default function GameTable({
         {room.gameState.trump && room.gameState.trumpJustSet && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
             <div className="relative">
-              <div className="bg-white p-1 rounded-lg border-4 border-yellow-500 shadow-2xl transform transition-all duration-700 animate-flip">
+              <div className="bg-white p-1 rounded-lg border-4 border-yellow-500 shadow-2xl transform transition-all duration-700 animate-flip-short">
                 <div className="flex flex-col items-center">
-                  <div className="bg-yellow-100 p-2 rounded-t-md w-full text-center">
-                    <span className="font-bold text-lg">Trump Set!</span>
+                  <div className="bg-yellow-400 p-2 rounded-t-md w-full text-center shadow-md">
+                    <span
+                      className="font-extrabold text-xl text-purple-900 drop-shadow-lg px-3 py-1 rounded bg-yellow-200/90"
+                      style={{ textShadow: "0 2px 8px #fff, 0 0 2px #000" }}
+                    >
+                      Trump Set!
+                    </span>
                   </div>
                   <div className="p-4 flex flex-col items-center bg-white rounded-b-md">
                     <span
@@ -184,6 +190,10 @@ export default function GameTable({
         {seatOrder.map((seat, idx) => {
           const player = room.players.find((p) => p.seat === seat);
           const isActive = room.currentPlayer === seat;
+          const isMe = player && player.id === currentPlayerId;
+          // Team color: team 1 (seats 1 & 3) = blue, team 2 (seats 2 & 4) = green
+          const isTeam1 = seat % 2 === 1;
+          const teamColor = isTeam1 ? "team1" : "team2";
           return (
             <div
               key={seat}
@@ -191,49 +201,192 @@ export default function GameTable({
               style={{ minWidth: 60 }}
               onClick={() => !player && onSeatClick && onSeatClick(seat)}
             >
-              {player ? (
-                <>
-                  <div
-                    className={`avatar${
-                      isActive ? " active" : ""
-                    } shadow-lg mb-1 transition-all duration-300`}
-                    title={player.name}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Player ${player.name}`}
-                  >
-                    {player.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-xs font-semibold text-white drop-shadow-sm text-center px-1">
+              {/* Seat base */}
+              <div
+                className={`rounded-xl w-16 h-16 md:w-20 md:h-20 flex items-center justify-center mb-1 shadow-lg transition-all duration-300
+                ${
+                  player
+                    ? isActive
+                      ? "border-4 border-yellow-400 animate-seat-glow-gold bg-gradient-to-b from-yellow-100/80 to-yellow-200/60"
+                      : teamColor === "team1"
+                      ? "border-2 border-blue-700 bg-gradient-to-b from-blue-900/80 to-blue-700/60"
+                      : "border-2 border-green-700 bg-gradient-to-b from-green-900/80 to-green-700/60"
+                    : "!border-2 border-dashed border-yellow-300 bg-gradient-to-b from-yellow-50/80 to-yellow-100/60 animate-seat-invite"
+                }
+                ${isMe && !isActive ? "animate-seat-glow-soft" : ""}
+              `}
+              >
+                {player ? (
+                  <>
+                    <div
+                      className={`avatar flex items-center justify-center font-bold text-lg md:text-xl
+                        ${isMe ? "text-yellow-100 scale-110" : "text-white"}
+                        w-10 h-10 md:w-14 md:h-14 rounded-lg bg-gray-900/90 shadow-xl transition-all duration-300`}
+                      title={player.name}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Player ${player.name}`}
+                    >
+                      {player.name.charAt(0).toUpperCase()}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className={`avatar flex items-center justify-center font-bold text-lg md:text-xl text-yellow-700 w-10 h-10 md:w-14 md:h-14 rounded-lg bg-yellow-100/80 border-2 border-yellow-300 shadow transition-all duration-200 cursor-pointer ${
+                        !isSeated ? "animate-pulse-seat" : ""
+                      }`}
+                      title="Join this seat"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Join seat ${seat}`}
+                    >
+                      +
+                    </div>
+                  </>
+                )}
+                {/* 'You' badge, above the seat base, only for your own seat */}
+                {isMe && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-600 shadow-md z-10">
+                    You
+                  </span>
+                )}
+              </div>
+              {/* Name and seat info */}
+              <span
+                className={`text-xs font-semibold text-center px-1 ${
+                  isMe
+                    ? "text-yellow-300 font-bold"
+                    : player
+                    ? teamColor === "team1"
+                      ? "text-blue-300"
+                      : "text-green-200"
+                    : "text-gray-200"
+                }`}
+              >
+                {player ? (
+                  <>
                     {player.name}
                     {dealerSeat === seat && (
                       <span className="ml-1 text-yellow-300 font-bold">
                         (D)
                       </span>
                     )}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div
-                    className="avatar bg-gray-700 opacity-70 mb-1 border-dashed border-2 border-gray-400 flex items-center justify-center cursor-pointer hover:bg-gray-600 hover:opacity-100 transition-all duration-200"
-                    title="Join this seat"
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Join seat ${seat}`}
-                  >
-                    +
-                  </div>
-                  <span className="text-xs font-semibold text-gray-200 drop-shadow-sm text-center px-1">
-                    Empty Seat
-                  </span>
-                </>
+                  </>
+                ) : (
+                  "Empty Seat"
+                )}
+              </span>
+              {/* Take a Seat prompt for unseated users */}
+              {!player && !isSeated && (
+                <span className="mt-1 text-[11px] font-bold text-yellow-300 animate-bounce pointer-events-none select-none">
+                  Take a Seat!
+                </span>
               )}
-              {/* Show seat number for clarity on mobile */}
-              <span className="text-[10px] text-gray-300">Seat {seat}</span>
             </div>
           );
         })}
+        {/* Pulsing seat animation and seat glow */}
+        <style jsx global>{`
+          @keyframes pulse-seat {
+            0% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.5);
+            }
+            70% {
+              box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+            }
+            100% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+            }
+          }
+          .animate-pulse-seat {
+            animation: pulse-seat 1.2s infinite;
+            border-color: #fbbf24 !important;
+          }
+          @keyframes flip-short {
+            0% {
+              transform: rotateY(90deg) scale(0.7);
+              opacity: 0.2;
+            }
+            40% {
+              transform: rotateY(-10deg) scale(1.05);
+              opacity: 1;
+            }
+            60% {
+              transform: rotateY(10deg) scale(0.98);
+            }
+            100% {
+              transform: rotateY(0deg) scale(1);
+              opacity: 1;
+            }
+          }
+          .animate-flip-short {
+            animation: flip-short 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+          }
+          @keyframes seat-glow {
+            0% {
+              box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+            }
+            70% {
+              box-shadow: 0 0 16px 8px rgba(34, 197, 94, 0.15);
+            }
+            100% {
+              box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            }
+          }
+          .animate-seat-glow {
+            animation: seat-glow 1.2s infinite;
+            border-color: #22c55e !important;
+          }
+          .animate-seat-glow-inner {
+            animation: seat-glow 1.2s infinite;
+            box-shadow: 0 0 12px 2px #22c55e99;
+          }
+          @keyframes seat-invite {
+            0% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.5);
+            }
+            70% {
+              box-shadow: 0 0 16px 8px rgba(251, 191, 36, 0.15);
+            }
+            100% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+            }
+          }
+          .animate-seat-invite {
+            animation: seat-invite 1.2s infinite;
+            border-color: #fbbf24 !important;
+          }
+          @keyframes seat-glow-gold {
+            0% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.5);
+            }
+            70% {
+              box-shadow: 0 0 16px 8px rgba(251, 191, 36, 0.18);
+            }
+            100% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+            }
+          }
+          .animate-seat-glow-gold {
+            animation: seat-glow-gold 1.2s infinite;
+            border-color: #fbbf24 !important;
+          }
+          @keyframes seat-glow-soft {
+            0% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.18);
+            }
+            70% {
+              box-shadow: 0 0 8px 4px rgba(251, 191, 36, 0.1);
+            }
+            100% {
+              box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+            }
+          }
+          .animate-seat-glow-soft {
+            animation: seat-glow-soft 1.2s infinite;
+          }
+        `}</style>
       </div>
     </div>
   );

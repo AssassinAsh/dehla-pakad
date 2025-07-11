@@ -81,14 +81,9 @@ export default function Home() {
             playerName
           )}`;
 
-          // Add a manual redirect fallback if Next.js router doesn't navigate properly
+          // Use only router.push, fallback to window.location.href only on error
           try {
             router.push(roomUrl);
-
-            // Fallback in case router.push doesn't redirect immediately
-            setTimeout(() => {
-              window.location.href = roomUrl;
-            }, 1000);
           } catch (navError) {
             console.error("Navigation error:", navError);
             window.location.href = roomUrl;

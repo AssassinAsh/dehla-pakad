@@ -1,11 +1,6 @@
 import { Server } from "socket.io";
 import { RoomManager } from "./roomManager.js";
-import {
-  createDeck,
-  determineTrickWinner,
-  calculateScores,
-  checkForKot,
-} from "./gameLogic.js";
+import { createDeck, determineTrickWinner } from "./gameLogic.js";
 
 // Create a wrapper around the TypeScript socketServer
 export default function setupSocketIO(server) {
@@ -171,7 +166,8 @@ export default function setupSocketIO(server) {
             // This is a valid off-suit play. If trump isn't set, this card sets it.
             if (!room.gameState.trump) {
               room.gameState.trump = playedCard.suit;
-              room.gameState.trumpJustSet = true; // Flag to deal cards after trick and show animation
+              room.gameState.trumpJustSet = true; // For animation
+              room.trumpSetThisTrick = true; // Track for dealing logic
               console.log(
                 `Trump suit has been set to: ${room.gameState.trump}`
               );
@@ -268,27 +264,41 @@ export default function setupSocketIO(server) {
 
             // Handle end of game
             if (isLastTrick) {
+              // Calculate Kot and draw
+              const t1Tens = room.gameState.scores.team1.tens;
+              const t2Tens = room.gameState.scores.team2.tens;
+              const t1Tricks = room.gameState.scores.team1.tricks;
+              const t2Tricks = room.gameState.scores.team2.tricks;
+              // Kot: team 1 or 2 gets all 4 tens
+              if (t1Tens === 4) room.gameState.kot = 1;
+              else if (t2Tens === 4) room.gameState.kot = 2;
+              // Draw: tens and tricks both tied
+              else if (t1Tens === t2Tens && t1Tricks === t2Tricks)
+                room.gameState.draw = true;
+              else room.gameState.draw = false;
               room.gameState.status = "finished";
               console.log(
                 "Game finished. Final Scores:",
-                room.gameState.scores
+                room.gameState.scores,
+                "Kot:",
+                room.gameState.kot,
+                "Draw:",
+                room.gameState.draw
               );
               // Final update will be sent, no further actions needed here
             }
 
-            // If trump was just set, deal remaining cards
-            if (room.gameState.trumpJustSet) {
-              // Don't reset the trumpJustSet flag here - it's used for animation
-              // and will be reset by a separate timeout
+            // If trump was set during this trick, deal remaining cards
+            if (room.trumpSetThisTrick) {
+              room.trumpSetThisTrick = false;
               if (room.deck && room.deck.length > 0) {
-                console.log("Dealing remaining cards...");
+                console.log(
+                  "Dealing remaining cards after trump set in trick..."
+                );
                 const deck = [...room.deck];
                 room.deck = [];
-
-                // Animated dealing
                 const dealRemainingCards = () => {
                   if (deck.length > 0) {
-                    // Deal one card to each player in order
                     for (let i = 0; i < room.players.length; i++) {
                       if (deck.length > 0) {
                         const player = room.players[i];
@@ -297,17 +307,54 @@ export default function setupSocketIO(server) {
                     }
                     RoomManager.updateRoom(roomId, room);
                     io.to(roomId).emit("roomUpdated", room);
-                    setTimeout(dealRemainingCards, 300); // 300ms delay per round of dealing
+                    setTimeout(dealRemainingCards, 300);
                   } else {
                     console.log("Finished dealing remaining cards.");
-                    // Final update after dealing is complete
                     RoomManager.updateRoom(roomId, room);
                     io.to(roomId).emit("roomUpdated", room);
                   }
                 };
                 dealRemainingCards();
-                return; // Prevent immediate final update before animation finishes
+                return;
               }
+            }
+
+            // If all players have 0 cards in hand (after 5 cards played) and trump is not set, deal remaining cards
+            const allHandsEmpty = room.players.every(
+              (p) => p.hand.length === 0
+            );
+            if (
+              !room.gameState.trump &&
+              allHandsEmpty &&
+              room.deck &&
+              room.deck.length > 0
+            ) {
+              console.log(
+                "All 5 cards played, trump not set, dealing remaining cards..."
+              );
+              const deck = [...room.deck];
+              room.deck = [];
+              const dealRemainingCards = () => {
+                if (deck.length > 0) {
+                  for (let i = 0; i < room.players.length; i++) {
+                    if (deck.length > 0) {
+                      const player = room.players[i];
+                      player.hand.push(deck.shift());
+                    }
+                  }
+                  RoomManager.updateRoom(roomId, room);
+                  io.to(roomId).emit("roomUpdated", room);
+                  setTimeout(dealRemainingCards, 300);
+                } else {
+                  console.log(
+                    "Finished dealing remaining cards (no trump set)."
+                  );
+                  RoomManager.updateRoom(roomId, room);
+                  io.to(roomId).emit("roomUpdated", room);
+                }
+              };
+              dealRemainingCards();
+              return;
             }
 
             // Update and broadcast the new state if not dealing

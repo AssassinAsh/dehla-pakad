@@ -17,6 +17,12 @@ import {
   PointerSensor,
   TouchSensor,
 } from "@dnd-kit/core";
+import Confetti from "react-confetti";
+import { useWindowSize } from "react-use";
+
+// Patch GameState type for kot/draw
+// (Remove this if you add kot/draw to the main type)
+type PatchedGameState = Room["gameState"] & { kot?: number; draw?: boolean };
 
 export default function RoomPage() {
   const router = useRouter();
@@ -212,6 +218,63 @@ export default function RoomPage() {
   const isMyTurn =
     currentPlayer && room && room.currentPlayer === currentPlayer.seat;
 
+  const [showEndgameModal, setShowEndgameModal] = useState(false);
+  const [endgameResult, setEndgameResult] = useState<null | {
+    result: "win" | "lose" | "draw";
+    isKot: boolean;
+    isDraw: boolean;
+    t1Tens: number;
+    t2Tens: number;
+    t1Tricks: number;
+    t2Tricks: number;
+  }>(null);
+  const { width, height } = useWindowSize();
+
+  // Watch for game end
+  useEffect(() => {
+    if (room && room.gameState.status === "finished") {
+      // Determine result
+      const t1Tens = room.gameState.scores.team1.tens;
+      const t2Tens = room.gameState.scores.team2.tens;
+      const t1Tricks = room.gameState.scores.team1.tricks;
+      const t2Tricks = room.gameState.scores.team2.tricks;
+      const mySeat = currentPlayer?.seat;
+      const myTeam = mySeat && (mySeat % 2 === 1 ? "team1" : "team2");
+      let result: "win" | "lose" | "draw" = "lose";
+      const gs = room.gameState as PatchedGameState;
+      const isKot = gs.kot === 1 || gs.kot === 2;
+      const isDraw = !!gs.draw;
+      if (isDraw) result = "draw";
+      else if (
+        (t1Tens > t2Tens && myTeam === "team1") ||
+        (t2Tens > t1Tens && myTeam === "team2") ||
+        (t1Tens === t2Tens &&
+          ((t1Tricks > t2Tricks && myTeam === "team1") ||
+            (t2Tricks > t1Tricks && myTeam === "team2")))
+      ) {
+        result = "win";
+      }
+      setEndgameResult({
+        result,
+        isKot,
+        isDraw,
+        t1Tens,
+        t2Tens,
+        t1Tricks,
+        t2Tricks,
+      });
+      setShowEndgameModal(true);
+    }
+  }, [room, currentPlayer]);
+
+  const handleReplay = () => {
+    // Optionally emit a replay event or reload the room
+    window.location.reload();
+  };
+  const handleLeave = () => {
+    window.location.href = "/";
+  };
+
   // If room data isn't loaded yet
   if (!room) {
     return (
@@ -258,6 +321,80 @@ export default function RoomPage() {
   return (
     <DndContext onDragEnd={handleDragEnd} autoScroll={false} sensors={sensors}>
       <div className="min-h-screen p-2 md:p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white pb-32 md:pb-40">
+        {/* Endgame Modal */}
+        {showEndgameModal && endgameResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
+            {/* Confetti for win or Kot */}
+            {(endgameResult.result === "win" ||
+              (endgameResult.isKot && endgameResult.result !== "draw")) && (
+              <Confetti
+                width={width}
+                height={height}
+                numberOfPieces={endgameResult.isKot ? 800 : 400}
+                recycle={false}
+                gravity={0.3}
+              />
+            )}
+            {/* Dramatic effect for Kot lose */}
+            {endgameResult.isKot && endgameResult.result === "lose" && (
+              <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-black to-purple-900 opacity-80 animate-pulse pointer-events-none" />
+            )}
+            <div className="relative bg-white text-gray-900 rounded-2xl shadow-2xl border-4 border-yellow-400 max-w-md w-full p-8 flex flex-col items-center animate-fade-in-up">
+              <h2
+                className={`text-3xl font-extrabold mb-2 ${
+                  endgameResult.result === "win"
+                    ? "text-green-700"
+                    : endgameResult.result === "lose"
+                    ? "text-red-700"
+                    : "text-yellow-600"
+                }`}
+              >
+                {endgameResult.isKot
+                  ? endgameResult.result === "win"
+                    ? "KOT!"
+                    : "KOT!"
+                  : endgameResult.result === "win"
+                  ? "You Win!"
+                  : endgameResult.result === "lose"
+                  ? "You Lose"
+                  : "Match Draw"}
+              </h2>
+              {endgameResult.isKot && (
+                <p className="text-lg font-bold text-purple-700 mb-2">
+                  All four 10s captured!
+                </p>
+              )}
+              <div className="flex flex-col gap-2 w-full mt-2 mb-4">
+                <div className="flex justify-between w-full">
+                  <span className="font-bold text-blue-700">Team 1 (1&3)</span>
+                  <span className="font-mono">
+                    {endgameResult.t1Tens} tens, {endgameResult.t1Tricks} tricks
+                  </span>
+                </div>
+                <div className="flex justify-between w-full">
+                  <span className="font-bold text-green-700">Team 2 (2&4)</span>
+                  <span className="font-mono">
+                    {endgameResult.t2Tens} tens, {endgameResult.t2Tricks} tricks
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-4 mt-4">
+                <button
+                  onClick={handleReplay}
+                  className="bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-6 py-2 rounded-lg shadow border-2 border-yellow-600 transition-transform transform hover:scale-105"
+                >
+                  Replay
+                </button>
+                <button
+                  onClick={handleLeave}
+                  className="bg-gray-800 hover:bg-gray-700 text-white font-bold px-6 py-2 rounded-lg shadow border-2 border-gray-900 transition-transform transform hover:scale-105"
+                >
+                  Leave
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           {/* Header */}
           <header className="flex justify-between items-center p-4 rounded-lg bg-black/30">
@@ -333,6 +470,19 @@ export default function RoomPage() {
                 >
                   Start Game / Deal Cards
                 </button>
+              </div>
+            )}
+          {/* Toast for non-hosts when all 4 players have joined */}
+          {!room.gameStarted &&
+            room.players.length === 4 &&
+            room.host !== currentPlayer?.name && (
+              <div className="flex justify-center mt-4">
+                <Toast
+                  message="All players are ready. Waiting for the host to start the game…"
+                  onClose={() => {}}
+                  type="game"
+                  duration={3500}
+                />
               </div>
             )}
         </div>
