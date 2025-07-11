@@ -99,39 +99,14 @@ export default function Home() {
   };
 
   const joinRoom = () => {
-    if (!playerName.trim()) {
-      setJoinRoomError("Please enter your name");
-      return;
-    }
     if (!joinRoomId.trim()) {
       setJoinRoomError("Please enter a room ID");
       return;
     }
-    const roomUrl = `/room/${joinRoomId}?name=${encodeURIComponent(
-      playerName
-    )}`;
-    // Try to join room by navigating, but listen for error via callback
-    if (socketRef.current) {
-      socketRef.current.emit(
-        "joinRoom",
-        joinRoomId,
-        playerName,
-        null,
-        (success: boolean, errorMsg?: string) => {
-          if (success) {
-            router.push(roomUrl);
-          } else if (errorMsg) {
-            setJoinRoomError(errorMsg);
-          } else {
-            setJoinRoomError(
-              "Failed to join room. Please check the Room ID and try again."
-            );
-          }
-        }
-      );
-    } else {
-      setJoinRoomError("Connection error. Please refresh and try again.");
-    }
+    // Navigate to the room page, uppercase the ID for consistency
+    const normalizedId = joinRoomId.trim().toUpperCase();
+    const roomUrl = `/room/${normalizedId}`;
+    router.push(roomUrl);
   };
 
   return (
@@ -173,6 +148,7 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-center text-green-800 mb-6">
               Join or Create a Room
             </h2>
+            {/* Name input only for create room, not for join room */}
             <input
               type="text"
               placeholder="Enter your name"
@@ -224,16 +200,9 @@ export default function Home() {
                   className="w-full px-4 py-3 mb-4 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
                   autoFocus
                 />
-                <input
-                  type="text"
-                  placeholder="Enter your name"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full px-4 py-3 mb-4 bg-green-50 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
-                />
                 <button
                   onClick={joinRoom}
-                  disabled={!playerName.trim() || !joinRoomId.trim()}
+                  disabled={!joinRoomId.trim()}
                   className="w-full bg-green-700 text-white font-bold py-2.5 sm:py-3 px-4 rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-transform transform hover:scale-105 shadow-lg"
                 >
                   Join Room

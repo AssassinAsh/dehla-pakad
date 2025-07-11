@@ -73,9 +73,9 @@ export default function GameTable({
           </div>
         </div>
 
-        {/* Trump indicator, more prominent on mobile, centered at top */}
+        {/* Trump indicator, sticky at top between right scorecard and top seat */}
         {room.gameState.trump && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
+          <div className="absolute top-1/2 right-[22%] z-30 flex flex-col items-center md:top-6 md:right-[26%]">
             <div className="bg-gradient-to-b from-purple-700 to-purple-900 border-2 border-yellow-400 shadow-lg rounded-full w-10 h-10 flex items-center justify-center">
               <span
                 className={`text-2xl font-extrabold drop-shadow-sm ${getSuitColor(

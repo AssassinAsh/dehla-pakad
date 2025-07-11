@@ -165,4 +165,34 @@ export class RoomManager {
     const room = rooms.get(roomId);
     return room ? room.replayVotes : new Set();
   }
+
+  static setPlayerReady(roomId, playerName, ready) {
+    const room = rooms.get(roomId);
+    if (room) {
+      const player = room.players.find(
+        (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+      );
+      if (player) {
+        player.isReady = ready;
+        rooms.set(roomId, room);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static resetAllReady(roomId) {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.players.forEach((p) => (p.isReady = false));
+      rooms.set(roomId, room);
+    }
+  }
+
+  static areAllPlayersReady(roomId) {
+    const room = rooms.get(roomId);
+    return (
+      room && room.players.length === 4 && room.players.every((p) => p.isReady)
+    );
+  }
 }

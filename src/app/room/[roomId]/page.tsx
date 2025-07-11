@@ -118,39 +118,6 @@ export default function RoomPage() {
     };
   }, [roomId, playerName]);
 
-  // Auto-join seat on page load if playerName is present and not already seated
-  useEffect(() => {
-    if (
-      playerName &&
-      room &&
-      socketRef.current &&
-      !room.players.some(
-        (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
-      )
-    ) {
-      // Find first available seat
-      const takenSeats = room.players.map((p) => p.seat);
-      const availableSeat = [1, 2, 3, 4].find((s) => !takenSeats.includes(s));
-      if (availableSeat) {
-        socketRef.current.emit(
-          "joinRoom",
-          room.id,
-          playerName,
-          availableSeat,
-          (success: boolean, errorMsg?: string) => {
-            if (!success && errorMsg && errorMsg.includes("already exists")) {
-              setError(errorMsg);
-              // Instead of redirecting, clear the name param and show the modal
-              router.replace(`/room/${roomId}`);
-              setShowNameModal(true);
-              setNameInput("");
-            }
-          }
-        );
-      }
-    }
-  }, [playerName, room]);
-
   const joinSeat = (seatNumber: number) => {
     if (!playerName || !room || !socketRef.current) return;
 
@@ -163,27 +130,8 @@ export default function RoomPage() {
       room.id,
       playerName,
       seatNumber,
-      (success: boolean) => {
-        if (success) {
-          // Safe-guard socket id as string
-          const sid = socketRef.current!.id || "";
-          setCurrentPlayer({
-            id: sid,
-            name: playerName,
-            seat: seatNumber,
-            hand: [],
-            isReady: true,
-            isConnected: true,
-          });
-        }
-      }
+      () => {}
     );
-  };
-
-  const startGame = () => {
-    if (room && room.players.length === 4 && socketRef.current) {
-      socketRef.current.emit("startGame", room.id);
-    }
   };
 
   const playCard = (card: Card) => {
@@ -250,7 +198,10 @@ export default function RoomPage() {
 
   // Helper: is it this player's turn?
   const isMyTurn =
-    currentPlayer && room && room.currentPlayer === currentPlayer.seat;
+    currentPlayer &&
+    room &&
+    room.gameState.status === "in-progress" &&
+    room.currentPlayer === currentPlayer.seat;
 
   const [showEndgameModal, setShowEndgameModal] = useState(false);
   const [endgameResult, setEndgameResult] = useState<null | {
@@ -317,6 +268,13 @@ export default function RoomPage() {
     }
     setCurrentPlayer(null);
     window.location.href = "/";
+  };
+
+  // Add handler for Ready button
+  const handleReady = () => {
+    if (socketRef.current && room && currentPlayer) {
+      socketRef.current.emit("playerReady", room.id, currentPlayer.name);
+    }
   };
 
   // If room data isn't loaded yet
@@ -565,32 +523,38 @@ export default function RoomPage() {
             currentPlayerId={currentPlayer?.id}
             onSeatClick={joinSeat}
           />
-          {/* Start Game Button - Fixed position */}
-          {!room.gameStarted &&
-            room.players.length === 4 &&
-            room.host === currentPlayer?.name && (
-              <div className="flex justify-center mt-4">
+          {/* Ready Button System */}
+          {!room.gameStarted && room.players.length === 4 && (
+            <div className="flex flex-col items-center mt-4">
+              {!currentPlayer?.isReady ? (
                 <button
-                  onClick={startGame}
-                  className="bg-gradient-to-r from-yellow-500 to-amber-500 text-gray-900 font-bold py-3 px-8 rounded-lg hover:from-yellow-400 hover:to-amber-400 transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-yellow-600"
+                  onClick={handleReady}
+                  className="bg-gradient-to-r from-green-400 to-green-600 text-white font-bold py-3 px-8 rounded-lg hover:from-green-300 hover:to-green-500 transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-700 animate-pulse"
                 >
-                  Start Game / Deal Cards
+                  Ready
                 </button>
+              ) : (
+                <div className="text-yellow-300 font-bold text-lg animate-pulse mt-2">
+                  Waiting for others to get ready…
+                </div>
+              )}
+              {/* Show which players are ready */}
+              <div className="flex flex-wrap gap-2 mt-4 justify-center">
+                {room.players.map((p) => (
+                  <span
+                    key={p.name}
+                    className={`px-3 py-1 rounded-full text-sm font-semibold border-2 shadow-md ${
+                      p.isReady
+                        ? "bg-green-500 border-green-700 text-white"
+                        : "bg-gray-700 border-gray-500 text-gray-300"
+                    }`}
+                  >
+                    {p.name} {p.isReady ? "✓" : ""}
+                  </span>
+                ))}
               </div>
-            )}
-          {/* Toast for non-hosts when all 4 players have joined */}
-          {!room.gameStarted &&
-            room.players.length === 4 &&
-            room.host !== currentPlayer?.name && (
-              <div className="flex justify-center mt-4">
-                <Toast
-                  message="All players are ready. Waiting for the host to start the game…"
-                  onClose={() => {}}
-                  type="game"
-                  duration={3500}
-                />
-              </div>
-            )}
+            </div>
+          )}
         </main>
         {/* Player Hand (always at bottom, floating) */}
         {currentPlayer && (

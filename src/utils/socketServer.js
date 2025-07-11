@@ -68,7 +68,7 @@ export default function setupSocketIO(server) {
           name: playerName,
           seat: seatNumber,
           hand: [],
-          isReady: true,
+          isReady: false,
           isConnected: true,
         };
 
@@ -187,12 +187,12 @@ export default function setupSocketIO(server) {
                 `Trump suit has been set to: ${room.gameState.trump}`
               );
 
-              // Show the trump announcement for a few seconds, then clear flag
+              // Show the trump announcement for 2 seconds, then clear flag
               setTimeout(() => {
                 room.gameState.trumpJustSet = false;
                 RoomManager.updateRoom(roomId, room);
                 io.to(roomId).emit("roomUpdated", room);
-              }, 5000); // Show for 5 seconds
+              }, 2000); // Show for 2 seconds
             }
           }
         }
@@ -430,6 +430,46 @@ export default function setupSocketIO(server) {
       }
     });
 
+    // Handle player ready event
+    socket.on("playerReady", (roomId, playerName) => {
+      const set = RoomManager.setPlayerReady(roomId, playerName, true);
+      if (set) {
+        const room = RoomManager.getRoom(roomId);
+        io.to(roomId).emit("roomUpdated", room);
+        if (RoomManager.areAllPlayersReady(roomId)) {
+          // All ready, start the game automatically
+          // (Reuse the startGame logic directly)
+          if (room && room.players.length === 4 && !room.gameStarted) {
+            RoomManager.setDealer(roomId, room.currentPlayer || 1);
+            RoomManager.setDealing(roomId, true);
+            const deck = createDeck();
+            let dealIndex = 0;
+            const dealCards = () => {
+              if (dealIndex < 5) {
+                room.players.forEach((player) => {
+                  player.hand.push(deck.shift());
+                });
+                RoomManager.updateRoom(roomId, room);
+                io.to(roomId).emit("roomUpdated", room);
+                dealIndex++;
+                setTimeout(dealCards, 300);
+              } else {
+                room.gameStarted = true;
+                room.gameState.status = "in-progress";
+                room.currentPlayer = room.players[0].seat;
+                room.deck = deck;
+                RoomManager.setDealing(roomId, false);
+                RoomManager.updateRoom(roomId, room);
+                io.to(roomId).emit("gameStarted", room);
+                io.to(roomId).emit("roomUpdated", room);
+              }
+            };
+            dealCards();
+          }
+        }
+      }
+    });
+
     // Handle room list requests
     socket.on("getRooms", () => {
       const roomsList = RoomManager.getRoomsList();
@@ -450,6 +490,7 @@ export default function setupSocketIO(server) {
         if (replayVotes.size === 4) {
           // Reset game state
           RoomManager.clearReplayVotes(roomId);
+          RoomManager.resetAllReady(roomId); // <-- Reset ready flags
           room.gameStarted = false;
           room.gameState = {
             status: "waiting",
@@ -469,17 +510,25 @@ export default function setupSocketIO(server) {
           room.currentPlayer = room.players[0].seat;
           RoomManager.updateRoom(roomId, room);
           io.to(roomId).emit("roomUpdated", room);
-          // Start new game automatically
-          setTimeout(() => {
-            io.to(roomId).emit("gameStarted", room);
-            socket.emit("startGame", roomId);
-          }, 1000);
+          // Now players must click Ready again to start
         } else {
           // Notify clients how many are ready
           io.to(roomId).emit("replayVote", { count: replayVotes.size });
         }
       } catch (error) {
         console.error("Error handling playerReplay:", error);
+      }
+    });
+
+    // Handle leaving a room
+    socket.on("leaveRoom", (roomId) => {
+      const room = RoomManager.getRoom(roomId);
+      if (room) {
+        RoomManager.removePlayerFromRoom(roomId, socket.id);
+        const updatedRoom = RoomManager.getRoom(roomId);
+        if (updatedRoom) {
+          io.to(roomId).emit("roomUpdated", updatedRoom);
+        }
       }
     });
 
