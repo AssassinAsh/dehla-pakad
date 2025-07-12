@@ -1,6 +1,8 @@
 // In-memory storage for development (replace with database in production)
 const rooms = new Map();
 
+import { BotManager } from "./botManager.js";
+
 export class RoomManager {
   static createRoom(roomId, firstPlayer) {
     const room = {
@@ -12,6 +14,7 @@ export class RoomManager {
         status: "waiting", // 'waiting', 'in-progress', 'finished'
         trump: null,
         trumpJustSet: false,
+        totalTricksCompleted: 0,
         scores: {
           team1: { tricks: 0, tens: 0 },
           team2: { tricks: 0, tens: 0 },
@@ -74,6 +77,8 @@ export class RoomManager {
 
     // If no players left, remove the room
     if (room.players.length === 0) {
+      // Clean up bots
+      BotManager.cleanupRoom(roomId);
       rooms.delete(roomId);
     } else {
       // If host left, transfer host to next player (by join order)
@@ -98,6 +103,7 @@ export class RoomManager {
 
     const updatedRoom = { ...room, ...updates };
     rooms.set(roomId, updatedRoom);
+
     return true;
   }
 

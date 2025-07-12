@@ -8,6 +8,7 @@ import GameTable from "@/components/GameTable";
 import RulesModal from "@/components/RulesModal";
 import PlayerHand from "@/components/PlayerHand";
 import Toast from "@/components/Toast"; // Import the new Toast component
+
 import "@/styles/animations.css";
 import {
   DndContext,
@@ -277,6 +278,14 @@ export default function RoomPage() {
     }
   };
 
+  const handleAddBot = (seat: number) => {
+    if (socketRef.current && room) {
+      // Add a bot to the specific seat with medium difficulty
+      console.log(`Adding bot to seat ${seat}`);
+      socketRef.current.emit("addBotToSeat", room.id, seat, "medium");
+    }
+  };
+
   // If room data isn't loaded yet
   if (!room) {
     return (
@@ -522,7 +531,10 @@ export default function RoomPage() {
             dealerSeat={room.dealerSeat}
             currentPlayerId={currentPlayer?.id}
             onSeatClick={joinSeat}
+            onAddBot={handleAddBot}
+            isHost={currentPlayer?.name === room.host}
           />
+
           {/* Ready Button System */}
           {!room.gameStarted && room.players.length === 4 && (
             <div className="flex flex-col items-center mt-4">

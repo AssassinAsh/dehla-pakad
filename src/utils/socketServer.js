@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { RoomManager } from "./roomManager.js";
-import { createDeck, determineTrickWinner } from "./gameLogic.js";
+import { createDeck } from "./gameLogic.js";
+import { BotManager } from "./botManager.js";
 
 // Create a wrapper around the TypeScript socketServer
 export default function setupSocketIO(server) {
@@ -158,225 +159,16 @@ export default function setupSocketIO(server) {
 
         const playedCard = player.hand[cardIndex];
 
-        // --- DEHLA PAKAD GAME LOGIC (Strict Suit Following & Trump Setting) ---
-        const leadSuit =
-          room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
-
-        if (leadSuit) {
-          // A lead suit exists for this trick.
-          if (playedCard.suit !== leadSuit) {
-            // Player is trying to play an off-suit card.
-            // Check if they have any card of the lead suit.
-            const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit);
-            if (hasLeadSuit) {
-              // If they have a card of the lead suit, they MUST play it.
-              console.log(
-                `Player ${player.seat} illegally played ${playedCard.id}. Must follow suit ${leadSuit}.`
-              );
-              return socket.emit(
-                "error",
-                `You must follow the suit: ${leadSuit}`
-              );
-            }
-            // This is a valid off-suit play. If trump isn't set, this card sets it.
-            if (!room.gameState.trump) {
-              room.gameState.trump = playedCard.suit;
-              room.gameState.trumpJustSet = true; // For animation
-              room.trumpSetThisTrick = true; // Track for dealing logic
-              console.log(
-                `Trump suit has been set to: ${room.gameState.trump}`
-              );
-
-              // Show the trump announcement for 2 seconds, then clear flag
-              setTimeout(() => {
-                room.gameState.trumpJustSet = false;
-                RoomManager.updateRoom(roomId, room);
-                io.to(roomId).emit("roomUpdated", room);
-              }, 2000); // Show for 2 seconds
-            }
-          }
-        }
-        // --- END OF GAME LOGIC ---
-
-        // Remove the card from player's hand
-        player.hand.splice(cardIndex, 1);
-        console.log(`Player ${player.seat} played card:`, playedCard);
-
-        // Add the played card to the current trick
-        room.currentTrick.push({ card: playedCard, seat: player.seat });
-
-        // Move to next player immediately
-        room.currentPlayer = (player.seat % 4) + 1;
-
-        // Broadcast the updated state to all players
-        RoomManager.updateRoom(roomId, room);
-        io.to(roomId).emit("roomUpdated", room); // Use roomUpdated for consistency
-
-        // If trick is complete (4 cards), handle trick completion
-        if (room.currentTrick.length === 4) {
-          const trickWinnerSeat = determineTrickWinner(
-            room.currentTrick,
-            room.gameState.trump
-          );
-          console.log("Trick completed, winner:", trickWinnerSeat);
-
-          const completedTrick = {
-            winner: trickWinnerSeat,
-            cards: [...room.currentTrick],
-          };
-
-          // --- NEW RULE: CONSECUTIVE WINS ---
-          // Check if this is the last trick of the game (13 total tricks)
-          const isLastTrick =
-            room.tricks.length + room.stackedTricks.length === 12;
-
-          if (
-            trickWinnerSeat === room.gameState.lastTrickWinnerSeat ||
-            isLastTrick
-          ) {
-            // Consecutive win OR last trick: Collect the stack
-            console.log(
-              `Player ${trickWinnerSeat} wins the stack. Consecutive: ${
-                trickWinnerSeat === room.gameState.lastTrickWinnerSeat
-              }, Last Trick: ${isLastTrick}`
-            );
-
-            const winnerTeam =
-              trickWinnerSeat === 1 || trickWinnerSeat === 3
-                ? "team1"
-                : "team2";
-            const tricksToAward = [...room.stackedTricks, completedTrick];
-
-            // Add to team's captured tricks
-            room.tricks.push(...tricksToAward);
-
-            // Update scores
-            tricksToAward.forEach((trick) => {
-              room.gameState.scores[winnerTeam].tricks += 1;
-              trick.cards.forEach((c) => {
-                if (c.card.rank === "10") {
-                  room.gameState.scores[winnerTeam].tens += 1;
-                }
-              });
-            });
-
-            room.stackedTricks = []; // Clear the stack
-            room.gameState.lastTrickWinnerSeat = null; // Reset for next stack
-          } else {
-            // Not a consecutive win: Add to stack
-            console.log(
-              `Player ${trickWinnerSeat} wins trick, but not stack. Stacking.`
-            );
-            room.stackedTricks.push(completedTrick);
-            room.gameState.lastTrickWinnerSeat = trickWinnerSeat;
-          }
-          // --- END OF NEW RULE ---
-
-          // Wait before clearing the trick on the table
-          setTimeout(() => {
-            room.currentTrick = [];
-            room.currentPlayer = trickWinnerSeat;
-
-            // Handle end of game
-            if (isLastTrick) {
-              // Calculate Kot and draw
-              const t1Tens = room.gameState.scores.team1.tens;
-              const t2Tens = room.gameState.scores.team2.tens;
-              const t1Tricks = room.gameState.scores.team1.tricks;
-              const t2Tricks = room.gameState.scores.team2.tricks;
-              // Kot: team 1 or 2 gets all 4 tens
-              if (t1Tens === 4) room.gameState.kot = 1;
-              else if (t2Tens === 4) room.gameState.kot = 2;
-              // Draw: tens and tricks both tied
-              else if (t1Tens === t2Tens && t1Tricks === t2Tricks)
-                room.gameState.draw = true;
-              else room.gameState.draw = false;
-              room.gameState.status = "finished";
-              console.log(
-                "Game finished. Final Scores:",
-                room.gameState.scores,
-                "Kot:",
-                room.gameState.kot,
-                "Draw:",
-                room.gameState.draw
-              );
-              // Final update will be sent, no further actions needed here
-            }
-
-            // If trump was set during this trick, deal remaining cards
-            if (room.trumpSetThisTrick) {
-              room.trumpSetThisTrick = false;
-              if (room.deck && room.deck.length > 0) {
-                console.log(
-                  "Dealing remaining cards after trump set in trick..."
-                );
-                const deck = [...room.deck];
-                room.deck = [];
-                const dealRemainingCards = () => {
-                  if (deck.length > 0) {
-                    for (let i = 0; i < room.players.length; i++) {
-                      if (deck.length > 0) {
-                        const player = room.players[i];
-                        player.hand.push(deck.shift());
-                      }
-                    }
-                    RoomManager.updateRoom(roomId, room);
-                    io.to(roomId).emit("roomUpdated", room);
-                    setTimeout(dealRemainingCards, 300);
-                  } else {
-                    console.log("Finished dealing remaining cards.");
-                    RoomManager.updateRoom(roomId, room);
-                    io.to(roomId).emit("roomUpdated", room);
-                  }
-                };
-                dealRemainingCards();
-                return;
-              }
-            }
-
-            // If all players have 0 cards in hand (after 5 cards played) and trump is not set, deal remaining cards
-            const allHandsEmpty = room.players.every(
-              (p) => p.hand.length === 0
-            );
-            if (
-              !room.gameState.trump &&
-              allHandsEmpty &&
-              room.deck &&
-              room.deck.length > 0
-            ) {
-              console.log(
-                "All 5 cards played, trump not set, dealing remaining cards..."
-              );
-              const deck = [...room.deck];
-              room.deck = [];
-              const dealRemainingCards = () => {
-                if (deck.length > 0) {
-                  for (let i = 0; i < room.players.length; i++) {
-                    if (deck.length > 0) {
-                      const player = room.players[i];
-                      player.hand.push(deck.shift());
-                    }
-                  }
-                  RoomManager.updateRoom(roomId, room);
-                  io.to(roomId).emit("roomUpdated", room);
-                  setTimeout(dealRemainingCards, 300);
-                } else {
-                  console.log(
-                    "Finished dealing remaining cards (no trump set)."
-                  );
-                  RoomManager.updateRoom(roomId, room);
-                  io.to(roomId).emit("roomUpdated", room);
-                }
-              };
-              dealRemainingCards();
-              return;
-            }
-
-            // Update and broadcast the new state if not dealing
-            RoomManager.updateRoom(roomId, room);
-            io.to(roomId).emit("roomUpdated", room);
-          }, 1500);
-        }
+        // Use the shared card play logic from BotManager
+        BotManager.processCardPlay(
+          room,
+          player,
+          playedCard,
+          cardIndex,
+          roomId,
+          io,
+          socket
+        );
       } catch (error) {
         console.error("Error playing card:", error);
         socket.emit("error", "Error playing card");
@@ -403,6 +195,10 @@ export default function setupSocketIO(server) {
               room.players.forEach((player) => {
                 player.hand.push(deck.shift());
               });
+
+              // Update bot hands
+              BotManager.updateBotHands(roomId, room);
+
               RoomManager.updateRoom(roomId, room);
               io.to(roomId).emit("roomUpdated", room);
               dealIndex++;
@@ -417,6 +213,9 @@ export default function setupSocketIO(server) {
               RoomManager.updateRoom(roomId, room);
               io.to(roomId).emit("gameStarted", room);
               io.to(roomId).emit("roomUpdated", room);
+
+              // Use unified turn handler for first player
+              BotManager.handleTurn(roomId, room, io);
             }
           };
           // Start dealing animation
@@ -470,6 +269,66 @@ export default function setupSocketIO(server) {
       }
     });
 
+    // Handle adding a bot to a specific seat
+    socket.on("addBotToSeat", (roomId, seat, difficulty = "medium") => {
+      try {
+        const room = RoomManager.getRoom(roomId);
+        if (!room) {
+          socket.emit("error", "Room not found");
+          return;
+        }
+
+        // Add bot to specific seat
+        const bot = BotManager.addBotToSeat(roomId, room, seat, difficulty);
+
+        if (bot) {
+          // Make bot ready automatically
+          bot.isReady = true;
+
+          // Update room and broadcast
+          RoomManager.updateRoom(roomId, room);
+          io.to(roomId).emit("roomUpdated", room);
+
+          console.log(
+            `Added bot ${bot.name} to seat ${seat} in room ${roomId}`
+          );
+        } else {
+          socket.emit("error", "Seat is already occupied");
+        }
+      } catch (error) {
+        console.error("Error adding bot:", error);
+        socket.emit("error", "Failed to add bot");
+      }
+    });
+
+    // Handle adding bots to room (for backward compatibility)
+    socket.on("addBots", (roomId, difficulty = "medium") => {
+      try {
+        const room = RoomManager.getRoom(roomId);
+        if (!room) {
+          socket.emit("error", "Room not found");
+          return;
+        }
+
+        // Add bots to fill empty seats
+        const bots = BotManager.addBotsToRoom(roomId, room, difficulty);
+
+        if (bots.length > 0) {
+          // Make bots ready automatically
+          BotManager.makeBotsReady(roomId);
+
+          // Update room and broadcast
+          RoomManager.updateRoom(roomId, room);
+          io.to(roomId).emit("roomUpdated", room);
+
+          console.log(`Added ${bots.length} bots to room ${roomId}`);
+        }
+      } catch (error) {
+        console.error("Error adding bots:", error);
+        socket.emit("error", "Failed to add bots");
+      }
+    });
+
     // Handle room list requests
     socket.on("getRooms", () => {
       const roomsList = RoomManager.getRoomsList();
@@ -486,8 +345,29 @@ export default function setupSocketIO(server) {
         if (!player) return;
         RoomManager.addReplayVote(roomId, player.name);
         const replayVotes = RoomManager.getReplayVotes(roomId);
-        // If all 4 players have voted, reset the game
-        if (replayVotes.size === 4) {
+
+        // Count only human players for replay votes (bots don't vote)
+        const humanPlayers = room.players.filter((p) => !BotManager.isBot(p));
+        const requiredVotes = humanPlayers.length;
+
+        // If all human players have voted, reset the game
+        if (replayVotes.size === requiredVotes) {
+          // Remove all bots from the room before resetting
+          const bots = BotManager.getBotsInRoom(roomId);
+          bots.forEach((bot) => {
+            // Remove bot from room.players
+            const botIndex = room.players.findIndex((p) => p.id === bot.id);
+            if (botIndex !== -1) {
+              room.players.splice(botIndex, 1);
+              console.log(
+                `Removed bot ${bot.name} from room ${roomId} during replay`
+              );
+            }
+          });
+
+          // Clean up bot tracking
+          BotManager.removeBotsFromRoom(roomId);
+
           // Reset game state
           RoomManager.clearReplayVotes(roomId);
           RoomManager.resetAllReady(roomId); // <-- Reset ready flags
@@ -496,6 +376,7 @@ export default function setupSocketIO(server) {
             status: "waiting",
             trump: null,
             trumpJustSet: false,
+            totalTricksCompleted: 0,
             scores: {
               team1: { tricks: 0, tens: 0 },
               team2: { tricks: 0, tens: 0 },
@@ -507,13 +388,17 @@ export default function setupSocketIO(server) {
           room.stackedTricks = [];
           room.tricks = [];
           // Optionally rotate dealer/first player
-          room.currentPlayer = room.players[0].seat;
+          room.currentPlayer =
+            room.players.length > 0 ? room.players[0].seat : null;
           RoomManager.updateRoom(roomId, room);
           io.to(roomId).emit("roomUpdated", room);
           // Now players must click Ready again to start
         } else {
           // Notify clients how many are ready
-          io.to(roomId).emit("replayVote", { count: replayVotes.size });
+          io.to(roomId).emit("replayVote", {
+            count: replayVotes.size,
+            required: requiredVotes,
+          });
         }
       } catch (error) {
         console.error("Error handling playerReplay:", error);

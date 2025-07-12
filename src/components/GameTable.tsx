@@ -8,6 +8,8 @@ interface GameTableProps {
   dealerSeat?: number;
   currentPlayerId?: string;
   onSeatClick?: (seat: number) => void;
+  onAddBot?: (seat: number) => void;
+  isHost?: boolean;
 }
 
 /**
@@ -18,6 +20,8 @@ export default function GameTable({
   dealerSeat,
   currentPlayerId,
   onSeatClick,
+  onAddBot,
+  isHost = false,
 }: GameTableProps) {
   const isDealing = room.gameState.dealing;
 
@@ -42,7 +46,7 @@ export default function GameTable({
   return (
     <div className="w-full max-w-3xl mx-auto relative flex flex-col md:flex-row items-center justify-center shadow-2xl px-2 sm:px-4">
       {/* Mobile-first vertical layout with max height for mobile */}
-      <div className="w-full aspect-[3/4] md:aspect-[2/1] max-h-[60vh] md:max-h-none bg-gradient-to-b from-green-800 to-green-900 rounded-2xl relative border-4 md:border-8 border-yellow-800 overflow-hidden p-2 sm:p-3 md:p-8 flex flex-col items-center justify-between mb-24 md:mb-0">
+      <div className="w-full aspect-[3/4] md:aspect-[2/1] max-h-[60vh] md:max-h-none md:min-h-[450px] bg-gradient-to-b from-green-800 to-green-900 rounded-2xl relative border-4 md:border-8 border-yellow-800 overflow-hidden p-2 sm:p-3 md:p-8 flex flex-col items-center justify-between mb-24 md:mb-0">
         {/* Table texture overlay */}
         <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-20 mix-blend-overlay pointer-events-none" />
         {/* Subtle inner shadow */}
@@ -271,12 +275,29 @@ export default function GameTable({
         >
           {player ? player.name : "Empty Seat"}
         </span>
-        {/* Take a Seat prompt for unseated users */}
-        {!player && !room.players.some((p) => p.id === currentPlayerId) && (
-          <span className="mt-1 text-[11px] font-bold text-yellow-300 animate-bounce pointer-events-none select-none">
-            Take a Seat!
-          </span>
+
+        {/* Bot controls for host on empty seats */}
+        {!player && isHost && !room.gameStarted && onAddBot && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddBot(seat);
+            }}
+            className="mt-1 text-[10px] font-bold text-purple-300 bg-purple-900/80 px-2 py-1 rounded-full border border-purple-600 hover:bg-purple-800/90 transition-colors cursor-pointer"
+            title="Add Bot"
+          >
+            Add Bot
+          </button>
         )}
+
+        {/* Take a Seat prompt for unseated users */}
+        {!player &&
+          !room.players.some((p) => p.id === currentPlayerId) &&
+          !isHost && (
+            <span className="mt-1 text-[11px] font-bold text-yellow-300 animate-bounce pointer-events-none select-none">
+              Take a Seat!
+            </span>
+          )}
       </div>
     );
   }
