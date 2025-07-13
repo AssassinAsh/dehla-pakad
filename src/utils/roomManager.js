@@ -68,6 +68,8 @@ export class RoomManager {
     // Check if the player being removed is the host
     const removedPlayer = room.players.find((p) => p.id === playerId);
     const isHostLeaving = removedPlayer && room.host === removedPlayer.name;
+    const isDealerLeaving =
+      removedPlayer && room.dealerSeat === removedPlayer.seat;
 
     room.players = room.players.filter((p) => p.id !== playerId);
 
@@ -81,6 +83,15 @@ export class RoomManager {
       if (isHostLeaving) {
         room.host = room.players.length > 0 ? room.players[0].name : undefined;
       }
+
+      // If dealer left, reassign dealer to next occupied seat
+      if (isDealerLeaving && room.players.length > 0) {
+        const occupiedSeats = room.players
+          .map((p) => p.seat)
+          .sort((a, b) => a - b);
+        room.dealerSeat = occupiedSeats[0]; // Assign to first available seat
+      }
+
       rooms.set(roomId, room);
     }
 
@@ -137,6 +148,35 @@ export class RoomManager {
       room.dealerSeat = seat;
       rooms.set(roomId, room);
     }
+  }
+
+  static rotateDealer(roomId) {
+    const room = rooms.get(roomId);
+    if (!room || room.players.length === 0) {
+      return;
+    }
+
+    // Get all occupied seats in order
+    const occupiedSeats = room.players.map((p) => p.seat).sort((a, b) => a - b);
+
+    if (!room.dealerSeat) {
+      // No dealer set yet, assign to first occupied seat
+      room.dealerSeat = occupiedSeats[0];
+    } else {
+      // Find current dealer index in the occupied seats array
+      const currentDealerIndex = occupiedSeats.indexOf(room.dealerSeat);
+
+      if (currentDealerIndex === -1) {
+        // Current dealer seat is no longer occupied, set to first occupied seat
+        room.dealerSeat = occupiedSeats[0];
+      } else {
+        // Move to next seat clockwise (with wrap-around)
+        const nextDealerIndex = (currentDealerIndex + 1) % occupiedSeats.length;
+        room.dealerSeat = occupiedSeats[nextDealerIndex];
+      }
+    }
+
+    rooms.set(roomId, room);
   }
 
   static setDealing(roomId, dealing) {

@@ -426,6 +426,10 @@ export default function setupSocketIO(server) {
           // Reset game state
           RoomManager.clearReplayVotes(roomId);
           RoomManager.resetAllReady(roomId); // <-- Reset ready flags
+
+          // Rotate dealer to next player clockwise
+          RoomManager.rotateDealer(roomId);
+
           room.gameStarted = false;
           room.gameState = {
             status: "waiting",
