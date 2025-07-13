@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import { RoomManager } from "./roomManager.js";
 import { createDeck } from "./gameLogic.js";
 import { BotManager } from "./botManager.js";
+import { MatchmakingQueue } from "./matchmakingQueue.js";
 
 // Debounce map for room updates
 const roomUpdateDebounce = new Map();
@@ -71,6 +72,9 @@ export default function setupSocketIO(server) {
   // Set the debounced room update function in BotManager
   BotManager.setEmitRoomUpdateFunction(emitRoomUpdate);
 
+  // Initialize MatchmakingQueue with Socket.IO instance
+  MatchmakingQueue.setIO(io);
+
   io.on("connection", (socket) => {
     // Handle room creation
     socket.on("createRoom", (playerName, callback) => {
@@ -127,28 +131,74 @@ export default function setupSocketIO(server) {
           emitRoomUpdate(roomId, io); // Use optimized emitter
           callback(true);
         } else {
-          // Check if duplicate name
-          const room = RoomManager.getRoom(roomId);
-          const normalizedName = playerName.trim().toLowerCase();
-          const nameExists =
-            room &&
-            room.players.some(
-              (p) => p.name.trim().toLowerCase() === normalizedName
-            );
-          if (nameExists) {
-            callback(
-              false,
-              "A player with this name already exists in the room. Please choose a different name."
-            );
-          } else {
-            callback(false);
-          }
+          callback(false);
         }
       } catch (error) {
         console.error("Error joining room:", error);
         callback(false);
       }
     });
+
+    // ========== MATCHMAKING SYSTEM ==========
+
+    // Handle joining matchmaking queue
+    socket.on("joinMatchmaking", (playerName, preferences, callback) => {
+      try {
+        const player = {
+          id: socket.id,
+          socketId: socket.id,
+          name: playerName,
+          hand: [],
+          isReady: false,
+          isConnected: true,
+        };
+
+        const result = MatchmakingQueue.addPlayerToQueue(player, preferences);
+
+        if (typeof callback === "function") {
+          callback(result);
+        }
+      } catch (error) {
+        console.error("Error joining matchmaking:", error);
+        if (typeof callback === "function") {
+          callback({ status: "error", message: "Failed to join matchmaking" });
+        }
+      }
+    });
+
+    // Handle leaving matchmaking queue
+    socket.on("leaveMatchmaking", (callback) => {
+      try {
+        const success = MatchmakingQueue.removePlayerFromQueue(socket.id);
+
+        if (typeof callback === "function") {
+          callback({ status: success ? "success" : "not-found" });
+        }
+      } catch (error) {
+        console.error("Error leaving matchmaking:", error);
+        if (typeof callback === "function") {
+          callback({ status: "error", message: "Failed to leave matchmaking" });
+        }
+      }
+    });
+
+    // Handle getting queue status
+    socket.on("getQueueStatus", (callback) => {
+      try {
+        const stats = MatchmakingQueue.getQueueStats();
+
+        if (typeof callback === "function") {
+          callback(stats);
+        }
+      } catch (error) {
+        console.error("Error getting queue status:", error);
+        if (typeof callback === "function") {
+          callback({ error: "Failed to get queue status" });
+        }
+      }
+    });
+
+    // ========== END MATCHMAKING ==========
 
     // Handle checking if a room exists
     socket.on("checkRoom", (roomId, callback) => {
@@ -424,6 +474,9 @@ export default function setupSocketIO(server) {
 
     // Handle disconnection
     socket.on("disconnect", () => {
+      // Clean up from matchmaking queue
+      MatchmakingQueue.cleanupDisconnectedPlayer(socket.id);
+
       // Give a grace period for reconnection, e.g., 5 seconds
       setTimeout(() => {
         const room = RoomManager.getRoomByPlayerId(socket.id);

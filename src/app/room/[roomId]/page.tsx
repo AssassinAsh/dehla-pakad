@@ -89,14 +89,7 @@ export default function RoomPage() {
 
     // Listen for joinRoom callback errors
     socket.on("error", (message) => {
-      if (
-        typeof message === "string" &&
-        message.includes("already exists in the room")
-      ) {
-        setError(message);
-      } else {
-        setError(message);
-      }
+      setError(message);
     });
 
     // Join room for updates (server will add to socket.join on create/join events)
