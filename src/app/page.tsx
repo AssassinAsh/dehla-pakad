@@ -4,13 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { io, Socket } from "socket.io-client";
-import RulesModal from "@/components/RulesModal"; // Import the modal
+import RulesModal from "@/components/RulesModal";
+import FeedbackModal from "@/components/FeedbackModal";
 
 export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [showJoinRoom, setShowJoinRoom] = useState(false); // State for showing join room dialog
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [joinRoomId, setJoinRoomId] = useState("");
   const [joinRoomError, setJoinRoomError] = useState("");
   const socketRef = useRef<Socket | null>(null);
@@ -127,12 +129,20 @@ export default function Home() {
           <p className="text-xs sm:text-sm md:text-base text-gray-700 mt-1 sm:mt-2 md:mt-2 max-w-xs sm:max-w-md">
             The classic 4-player trick-taking card game.
           </p>
-          <button
-            onClick={() => setIsRulesModalOpen(true)}
-            className="mt-4 bg-yellow-400 hover:bg-yellow-300 text-green-900 font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 border-2 border-yellow-500"
-          >
-            How to Play
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            <button
+              onClick={() => setIsRulesModalOpen(true)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-green-900 font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 border-2 border-yellow-500"
+            >
+              How to Play
+            </button>
+            <button
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="bg-blue-500 hover:bg-blue-400 text-white font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 border-2 border-blue-600"
+            >
+              Give Feedback
+            </button>
+          </div>
         </div>
 
         {/* Room Creation & Join */}
@@ -224,6 +234,12 @@ export default function Home() {
       <RulesModal
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
+      />
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
       />
       {/* Footer */}
       <footer className="w-full text-center text-xs text-green-900/70 mt-8 mb-2">
