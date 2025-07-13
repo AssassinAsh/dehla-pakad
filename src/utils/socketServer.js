@@ -3,6 +3,59 @@ import { RoomManager } from "./roomManager.js";
 import { createDeck } from "./gameLogic.js";
 import { BotManager } from "./botManager.js";
 
+// Debounce map for room updates
+const roomUpdateDebounce = new Map();
+
+// Optimized room update emitter with debouncing
+function emitRoomUpdate(roomId, io, delay = 50) {
+  // Clear existing timeout
+  if (roomUpdateDebounce.has(roomId)) {
+    clearTimeout(roomUpdateDebounce.get(roomId));
+  }
+
+  // Set new timeout
+  const timeoutId = setTimeout(() => {
+    const room = RoomManager.getRoom(roomId);
+    if (room) {
+      io.to(roomId).emit("roomUpdated", room);
+    }
+    roomUpdateDebounce.delete(roomId);
+  }, delay);
+
+  roomUpdateDebounce.set(roomId, timeoutId);
+}
+
+// Optimized dealing function to reduce emissions
+function dealCardsOptimized(room, roomId, io, deck) {
+  return new Promise((resolve) => {
+    let dealIndex = 0;
+    const dealCards = () => {
+      if (dealIndex < 5) {
+        // Deal 4 cards at once (one per player)
+        room.players.forEach((player) => {
+          player.hand.push(deck.shift());
+        });
+
+        // Update bot hands
+        BotManager.updateBotHands(roomId, room);
+
+        dealIndex++;
+
+        // Only emit update every 2 deals to reduce network traffic
+        if (dealIndex % 2 === 0 || dealIndex === 5) {
+          RoomManager.updateRoom(roomId, room);
+          emitRoomUpdate(roomId, io, 100);
+        }
+
+        setTimeout(dealCards, dealIndex === 5 ? 0 : 200); // Faster dealing
+      } else {
+        resolve();
+      }
+    };
+    dealCards();
+  });
+}
+
 // Create a wrapper around the TypeScript socketServer
 export default function setupSocketIO(server) {
   const io = new Server(server, {
@@ -14,6 +67,9 @@ export default function setupSocketIO(server) {
       methods: ["GET", "POST"],
     },
   });
+
+  // Set the debounced room update function in BotManager
+  BotManager.setEmitRoomUpdateFunction(emitRoomUpdate);
 
   io.on("connection", (socket) => {
     // Handle room creation
@@ -68,8 +124,7 @@ export default function setupSocketIO(server) {
         const success = RoomManager.addPlayerToRoom(roomId, player);
         if (success) {
           socket.join(roomId);
-          const room = RoomManager.getRoom(roomId);
-          io.to(roomId).emit("roomUpdated", room); // Broadcast to all in room
+          emitRoomUpdate(roomId, io); // Use optimized emitter
           callback(true);
         } else {
           // Check if duplicate name
@@ -159,7 +214,7 @@ export default function setupSocketIO(server) {
     });
 
     // Handle starting the game
-    socket.on("startGame", (roomId) => {
+    socket.on("startGame", async (roomId) => {
       try {
         const room = RoomManager.getRoom(roomId);
 
@@ -171,38 +226,23 @@ export default function setupSocketIO(server) {
 
           const deck = createDeck();
 
-          // Animate dealing: deal cards one by one with delay
-          let dealIndex = 0;
-          const dealCards = () => {
-            if (dealIndex < 5) {
-              room.players.forEach((player) => {
-                player.hand.push(deck.shift());
-              });
+          // Use optimized dealing
+          await dealCardsOptimized(room, roomId, io, deck);
 
-              // Update bot hands
-              BotManager.updateBotHands(roomId, room);
+          // Finish dealing
+          room.gameStarted = true;
+          room.gameState.status = "in-progress";
+          room.currentPlayer = room.players[0].seat; // Start with seat 1
+          room.deck = deck; // Store remaining deck
+          RoomManager.setDealing(roomId, false);
+          RoomManager.updateRoom(roomId, room);
 
-              RoomManager.updateRoom(roomId, room);
-              io.to(roomId).emit("roomUpdated", room);
-              dealIndex++;
-              setTimeout(dealCards, 300); // 300ms per card
-            } else {
-              // Finish dealing
-              room.gameStarted = true;
-              room.gameState.status = "in-progress";
-              room.currentPlayer = room.players[0].seat; // Start with seat 1
-              room.deck = deck; // Store remaining deck
-              RoomManager.setDealing(roomId, false);
-              RoomManager.updateRoom(roomId, room);
-              io.to(roomId).emit("gameStarted", room);
-              io.to(roomId).emit("roomUpdated", room);
+          // Single emission for game start
+          io.to(roomId).emit("gameStarted", room);
+          emitRoomUpdate(roomId, io);
 
-              // Use unified turn handler for first player
-              BotManager.handleTurn(roomId, room, io);
-            }
-          };
-          // Start dealing animation
-          dealCards();
+          // Use unified turn handler for first player
+          BotManager.handleTurn(roomId, room, io);
         } else {
           socket.emit("error", "Cannot start game.");
         }
@@ -213,40 +253,31 @@ export default function setupSocketIO(server) {
     });
 
     // Handle player ready event
-    socket.on("playerReady", (roomId, playerName) => {
+    socket.on("playerReady", async (roomId, playerName) => {
       const set = RoomManager.setPlayerReady(roomId, playerName, true);
       if (set) {
         const room = RoomManager.getRoom(roomId);
-        io.to(roomId).emit("roomUpdated", room);
+        emitRoomUpdate(roomId, io);
+
         if (RoomManager.areAllPlayersReady(roomId)) {
           // All ready, start the game automatically
-          // (Reuse the startGame logic directly)
           if (room && room.players.length === 4 && !room.gameStarted) {
             RoomManager.setDealer(roomId, room.currentPlayer || 1);
             RoomManager.setDealing(roomId, true);
             const deck = createDeck();
-            let dealIndex = 0;
-            const dealCards = () => {
-              if (dealIndex < 5) {
-                room.players.forEach((player) => {
-                  player.hand.push(deck.shift());
-                });
-                RoomManager.updateRoom(roomId, room);
-                io.to(roomId).emit("roomUpdated", room);
-                dealIndex++;
-                setTimeout(dealCards, 300);
-              } else {
-                room.gameStarted = true;
-                room.gameState.status = "in-progress";
-                room.currentPlayer = room.players[0].seat;
-                room.deck = deck;
-                RoomManager.setDealing(roomId, false);
-                RoomManager.updateRoom(roomId, room);
-                io.to(roomId).emit("gameStarted", room);
-                io.to(roomId).emit("roomUpdated", room);
-              }
-            };
-            dealCards();
+
+            // Use optimized dealing
+            await dealCardsOptimized(room, roomId, io, deck);
+
+            room.gameStarted = true;
+            room.gameState.status = "in-progress";
+            room.currentPlayer = room.players[0].seat;
+            room.deck = deck;
+            RoomManager.setDealing(roomId, false);
+            RoomManager.updateRoom(roomId, room);
+
+            io.to(roomId).emit("gameStarted", room);
+            emitRoomUpdate(roomId, io);
           }
         }
       }
@@ -270,7 +301,7 @@ export default function setupSocketIO(server) {
 
           // Update room and broadcast
           RoomManager.updateRoom(roomId, room);
-          io.to(roomId).emit("roomUpdated", room);
+          emitRoomUpdate(roomId, io);
         } else {
           socket.emit("error", "Seat is already occupied");
         }
@@ -298,7 +329,7 @@ export default function setupSocketIO(server) {
 
           // Update room and broadcast
           RoomManager.updateRoom(roomId, room);
-          io.to(roomId).emit("roomUpdated", room);
+          emitRoomUpdate(roomId, io);
         }
       } catch (error) {
         console.error("Error adding bots:", error);
@@ -365,7 +396,7 @@ export default function setupSocketIO(server) {
           room.currentPlayer =
             room.players.length > 0 ? room.players[0].seat : null;
           RoomManager.updateRoom(roomId, room);
-          io.to(roomId).emit("roomUpdated", room);
+          emitRoomUpdate(roomId, io);
           // Now players must click Ready again to start
         } else {
           // Notify clients how many are ready
@@ -386,7 +417,7 @@ export default function setupSocketIO(server) {
         RoomManager.removePlayerFromRoom(roomId, socket.id);
         const updatedRoom = RoomManager.getRoom(roomId);
         if (updatedRoom) {
-          io.to(roomId).emit("roomUpdated", updatedRoom);
+          emitRoomUpdate(roomId, io);
         }
       }
     });
@@ -403,7 +434,7 @@ export default function setupSocketIO(server) {
             RoomManager.removePlayerFromRoom(room.id, socket.id);
             const updatedRoom = RoomManager.getRoom(room.id);
             if (updatedRoom) {
-              io.to(room.id).emit("roomUpdated", updatedRoom);
+              emitRoomUpdate(room.id, io);
             }
           }
         }
@@ -411,11 +442,11 @@ export default function setupSocketIO(server) {
     });
   });
 
-  // Emit updated room list to all clients in the lobby every 5 seconds
+  // Emit updated room list to all clients in the lobby every 10 seconds (reduced frequency)
   setInterval(() => {
     const roomsList = RoomManager.getRoomsList();
     io.emit("roomsList", roomsList);
-  }, 5000);
+  }, 10000);
 
   return io;
 }

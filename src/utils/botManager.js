@@ -4,6 +4,12 @@ import { determineTrickWinner } from "./gameLogic.js";
 
 export class BotManager {
   static botPlayers = new Map(); // Track bot players by room
+  static emitRoomUpdateFn = null; // Store reference to debounced room update function
+
+  // Set the debounced room update function
+  static setEmitRoomUpdateFunction(emitRoomUpdateFn) {
+    this.emitRoomUpdateFn = emitRoomUpdateFn;
+  }
 
   // Add a single bot to a specific seat
   static addBotToSeat(roomId, room, seat, difficulty = "medium") {
@@ -125,16 +131,36 @@ export class BotManager {
 
         // Update room and broadcast
         RoomManager.updateRoom(roomId, room);
-        io.to(roomId).emit("roomUpdated", room);
+        if (this.emitRoomUpdateFn) {
+          this.emitRoomUpdateFn(roomId, io, 100);
+        } else {
+          io.to(roomId).emit("roomUpdated", room);
+        }
 
         // Continue dealing after a short delay
         setTimeout(dealCards, 300);
       } else {
         console.log("Finished dealing remaining cards.");
 
+        // VALIDATION: Ensure all players have cards before continuing
+        const playersWithoutCards = room.players.filter(
+          (p) => !p.hand || p.hand.length === 0
+        );
+        if (playersWithoutCards.length > 0) {
+          console.error(
+            "Error: Some players have no cards after dealing!",
+            playersWithoutCards.map((p) => p.name)
+          );
+          return; // Don't continue the game if players have no cards
+        }
+
         // Final update and continue with next turn
         RoomManager.updateRoom(roomId, room);
-        io.to(roomId).emit("roomUpdated", room);
+        if (this.emitRoomUpdateFn) {
+          this.emitRoomUpdateFn(roomId, io, 100);
+        } else {
+          io.to(roomId).emit("roomUpdated", room);
+        }
 
         // Handle next turn after dealing is complete
         setTimeout(() => {
@@ -171,6 +197,11 @@ export class BotManager {
       return;
     }
 
+    // Validate that the game is still in progress
+    if (latestRoom.gameState.status !== "in-progress") {
+      return;
+    }
+
     // Validate that it's actually this player's turn
     if (!latestRoom.currentPlayer) {
       return;
@@ -182,6 +213,14 @@ export class BotManager {
     );
 
     if (!currentPlayer) {
+      return;
+    }
+
+    // CRITICAL: Check if player has cards before trying to make them play
+    if (!currentPlayer.hand || currentPlayer.hand.length === 0) {
+      console.error(
+        `Player ${currentPlayer.name} has no cards in hand - cannot take turn`
+      );
       return;
     }
 
@@ -201,7 +240,10 @@ export class BotManager {
   // Make a bot play automatically when it's their turn
   static makeAutomaticBotPlay(roomId, currentPlayer, io) {
     // Prevent multiple simultaneous plays
-    if (currentPlayer.isThinking) {
+    if (currentPlayer.isThinking || currentPlayer.isPlaying) {
+      console.log(
+        `Bot ${currentPlayer.name} is already thinking/playing, skipping`
+      );
       return;
     }
 
@@ -219,6 +261,32 @@ export class BotManager {
 
         // Double-check that it's still this bot's turn
         if (room.currentPlayer !== currentPlayer.seat) {
+          console.log(
+            `Bot ${currentPlayer.name} is no longer the current player`
+          );
+          currentPlayer.isThinking = false;
+          return;
+        }
+
+        // CRITICAL: Check if bot has any cards in hand
+        if (!currentPlayer.hand || currentPlayer.hand.length === 0) {
+          console.error(`Bot ${currentPlayer.name} has no cards in hand`);
+          currentPlayer.isThinking = false;
+          return;
+        }
+
+        // ADDITIONAL: Ensure game is still in progress
+        if (room.gameState.status !== "in-progress") {
+          console.log(
+            `Game not in progress, bot ${currentPlayer.name} cannot play`
+          );
+          currentPlayer.isThinking = false;
+          return;
+        }
+
+        // RACE CONDITION CHECK: Make sure bot isn't already playing
+        if (currentPlayer.isPlaying) {
+          console.log(`Bot ${currentPlayer.name} is already playing a card`);
           currentPlayer.isThinking = false;
           return;
         }
@@ -237,6 +305,15 @@ export class BotManager {
           return;
         }
 
+        // Final check before playing
+        if (room.currentPlayer !== currentPlayer.seat) {
+          console.log(
+            `Bot ${currentPlayer.name} turn changed during card selection`
+          );
+          currentPlayer.isThinking = false;
+          return;
+        }
+
         // Now simulate the same card play that a human would do
         // This uses the exact same logic as the human playCard handler
         this.simulateCardPlay(roomId, currentPlayer, chosenCard, io);
@@ -247,7 +324,7 @@ export class BotManager {
         );
         currentPlayer.isThinking = false;
       }
-    }, 1000 + Math.random() * 1000); // 1-2 second delay
+    }, 1200 + Math.random() * 800); // 1.2-2.0 second delay (increased)
   }
 
   // Simulate a card play exactly like a human would do it
@@ -287,62 +364,105 @@ export class BotManager {
     io,
     socket = null
   ) {
-    // --- DEHLA PAKAD GAME LOGIC (Strict Suit Following & Trump Setting) ---
-    const leadSuit =
-      room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
+    // CRITICAL: Prevent multiple card plays from the same player
+    if (player.isPlaying) {
+      console.log(
+        `Player ${player.name} is already playing a card, ignoring duplicate`
+      );
+      return;
+    }
 
-    if (leadSuit && playedCard.suit !== leadSuit) {
-      // Check if player has cards of the lead suit
-      const hasLeadSuit = player.hand.some((card) => card.suit === leadSuit);
-      if (hasLeadSuit) {
-        // Invalid play for humans - send error. For bots, this shouldn't happen
-        if (socket) {
-          return socket.emit("error", `You must follow the suit: ${leadSuit}`);
+    // Set playing flag to prevent race conditions
+    player.isPlaying = true;
+
+    // Clear thinking flag for bots
+    if (this.isBot(player)) {
+      player.isThinking = false;
+    }
+
+    try {
+      // --- DEHLA PAKAD GAME LOGIC (Strict Suit Following & Trump Setting) ---
+      const leadSuit =
+        room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
+
+      if (leadSuit && playedCard.suit !== leadSuit) {
+        // Check if player has cards of the lead suit
+        const hasLeadSuit = player.hand.some((card) => card.suit === leadSuit);
+        if (hasLeadSuit) {
+          // Invalid play for humans - send error. For bots, this shouldn't happen
+          if (socket) {
+            player.isPlaying = false; // Clear flag on error
+            return socket.emit(
+              "error",
+              `You must follow the suit: ${leadSuit}`
+            );
+          } else {
+            console.error(
+              `Bot ${player.name} tried to play invalid card - must follow suit ${leadSuit}`
+            );
+            player.isPlaying = false; // Clear flag on error
+            return; // Bot shouldn't make invalid moves
+          }
         } else {
-          console.error(
-            `Bot ${player.name} tried to play invalid card - must follow suit ${leadSuit}`
-          );
-          return; // Bot shouldn't make invalid moves
-        }
-      } else {
-        // This is a valid off-suit play. If trump isn't set, this card sets it.
-        if (!room.gameState.trump) {
-          room.gameState.trump = playedCard.suit;
-          room.gameState.trumpJustSet = true; // For animation
-          room.trumpSetThisTrick = true; // Track for dealing logic
+          // This is a valid off-suit play. If trump isn't set, this card sets it.
+          if (!room.gameState.trump) {
+            room.gameState.trump = playedCard.suit;
+            room.gameState.trumpJustSet = true; // For animation
+            room.trumpSetThisTrick = true; // Track for dealing logic
 
-          // Show the trump announcement for 2 seconds, then clear flag
-          setTimeout(() => {
-            room.gameState.trumpJustSet = false;
-            RoomManager.updateRoom(roomId, room);
-            io.to(roomId).emit("roomUpdated", room);
-          }, 2000);
+            // Show the trump announcement for 2 seconds, then clear flag
+            setTimeout(() => {
+              room.gameState.trumpJustSet = false;
+              RoomManager.updateRoom(roomId, room);
+              io.to(roomId).emit("roomUpdated", room);
+            }, 2000);
+          }
         }
       }
-    }
-    // --- END OF GAME LOGIC ---
+      // --- END OF GAME LOGIC ---
 
-    // Remove the card from player's hand
-    player.hand.splice(cardIndex, 1);
+      // Remove the card from player's hand
+      player.hand.splice(cardIndex, 1);
 
-    // Add the played card to the current trick
-    room.currentTrick.push({ card: playedCard, seat: player.seat });
+      // Add the played card to the current trick
+      room.currentTrick.push({ card: playedCard, seat: player.seat });
 
-    // Move to next player immediately
-    room.currentPlayer = (player.seat % 4) + 1;
+      // Move to next player immediately
+      room.currentPlayer = (player.seat % 4) + 1;
 
-    // Update room and broadcast
-    RoomManager.updateRoom(roomId, room);
-    io.to(roomId).emit("roomUpdated", room);
+      // Update room and broadcast using debounced function
+      RoomManager.updateRoom(roomId, room);
 
-    // If trick is complete (4 cards), handle trick completion
-    if (room.currentTrick.length === 4) {
-      this.processTrickCompletion(room, roomId, io);
-    } else {
-      // Continue with next player's turn after a short delay
-      setTimeout(() => {
-        this.handleTurn(roomId, room, io);
-      }, 500);
+      // Use stored emitRoomUpdate function if available, otherwise direct emit
+      if (
+        this.emitRoomUpdateFn &&
+        typeof this.emitRoomUpdateFn === "function"
+      ) {
+        this.emitRoomUpdateFn(roomId, io, 100);
+      } else {
+        io.to(roomId).emit("roomUpdated", room);
+      }
+
+      // If trick is complete (4 cards), handle trick completion
+      if (room.currentTrick.length === 4) {
+        // Clear all players' playing flags
+        room.players.forEach((p) => (p.isPlaying = false));
+        this.processTrickCompletion(room, roomId, io);
+      } else {
+        // Clear the current player's playing flag
+        player.isPlaying = false;
+
+        // Continue with next player's turn after a longer delay to prevent race conditions
+        setTimeout(() => {
+          this.handleTurn(roomId, room, io);
+        }, 800); // Increased delay from 500ms to 800ms
+      }
+    } catch (error) {
+      console.error(`Error in processCardPlay for ${player.name}:`, error);
+      player.isPlaying = false; // Clear flag on error
+      if (this.isBot(player)) {
+        player.isThinking = false;
+      }
     }
   }
 
