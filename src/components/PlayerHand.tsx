@@ -34,37 +34,60 @@ function DraggableCard({
       id: card.id,
       disabled: !canPlay,
     });
+
   const isSmallScreen =
     typeof window !== "undefined" && window.innerWidth < 600;
-  const fanSpread = isSmallScreen ? 32 : 44;
+
+  // Enhanced fan spread calculations for better visual appeal
+  const fanSpread = isSmallScreen ? 28 : 38;
   const centerOffset = index - (totalCards - 1) / 2;
-  const rotation = isSmallScreen ? centerOffset * 1 : centerOffset * 2;
+  const rotation = isSmallScreen ? centerOffset * 1.2 : centerOffset * 2.5;
   const horizontalOffset = centerOffset * fanSpread;
+
+  // Enhanced vertical positioning with arc effect
+  const verticalOffset = Math.abs(centerOffset) * (isSmallScreen ? 2 : 4);
+
   const dragTransform = transform
     ? CSS.Translate.toString(transform)
     : undefined;
+
   const style = {
     left: `calc(50% + ${horizontalOffset}px)`,
-    bottom: canPlay && selected ? "50px" : "20px",
-    zIndex: selected ? 30 : index,
+    bottom: canPlay && selected ? "60px" : `${20 + verticalOffset}px`, // Arc effect
+    zIndex: selected ? 40 : 20 + index,
     transform: `rotate(${rotation}deg)${
       dragTransform ? ` ${dragTransform}` : ""
-    }`,
-    transition: isDragging ? "none" : "all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)",
+    }${selected ? " scale(1.15)" : ""}`,
+    transition: isDragging
+      ? "none"
+      : "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+    filter: selected
+      ? "drop-shadow(0 12px 24px rgba(251, 192, 45, 0.4))"
+      : canPlay
+      ? "drop-shadow(0 6px 12px rgba(0,0,0,0.15))"
+      : "drop-shadow(0 3px 6px rgba(0,0,0,0.1)) grayscale(20%)",
   };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...listeners}
       {...attributes}
-      className={`card absolute transition-all duration-200 ${
-        canPlay ? "playable" : ""
-      } ${
-        selected ? "ring-4 ring-yellow-400 ring-opacity-70 scale-110 z-30" : ""
-      } ${canPlay && !isDragging ? "hover:shadow-lg hover:scale-105" : ""} ${
-        isDragging ? "opacity-90 scale-105 z-50" : ""
-      }`}
+      className={`absolute transition-all duration-400 cursor-pointer select-none haptic-light focus-ring
+        ${canPlay ? "hover-effect" : "opacity-75"}
+        ${
+          selected
+            ? "ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-green-900/50 animate-enhanced-pulse"
+            : ""
+        }
+        ${
+          canPlay && !isDragging
+            ? "hover:scale-110 hover:-translate-y-3 hover:shadow-2xl"
+            : ""
+        }
+        ${isDragging ? "opacity-90 scale-110 z-50 rotate-0 card-dragging" : ""}
+      `}
       onClick={() => {
         if (canPlay) {
           if (selected) {
@@ -75,15 +98,64 @@ function DraggableCard({
           }
         }
       }}
-      tabIndex={0}
+      onKeyDown={(e) => {
+        if (canPlay && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          if (selected) {
+            onPlay(card);
+            setSelected(null);
+          } else {
+            setSelected(card.id);
+          }
+        }
+      }}
+      tabIndex={canPlay ? 0 : -1}
       role="button"
-      aria-label={`Play ${card.rank} of ${card.suit}`}
+      aria-label={`${selected ? "Selected: " : ""}${card.rank} of ${card.suit}${
+        canPlay ? ". Click to play." : ""
+      }`}
+      aria-pressed={selected}
     >
-      <CardComponent
-        card={card}
-        size={isSmallScreen ? "large" : "medium"}
-        className={`rounded-lg ${canPlay ? "shadow-xl" : "shadow-md"}`}
-      />
+      <div className={`relative ${selected ? "animate-spotlight" : ""}`}>
+        <CardComponent
+          card={card}
+          size={isSmallScreen ? "large" : "medium"}
+          className={`rounded-xl overflow-hidden border-2 transition-all duration-300
+            ${
+              canPlay
+                ? "border-white/30 shadow-xl bg-white"
+                : "border-gray-400/20 shadow-md bg-gray-100"
+            }
+            ${
+              selected
+                ? "border-yellow-400/60 bg-gradient-to-br from-white via-yellow-50 to-white"
+                : ""
+            }
+          `}
+        />
+
+        {/* Enhanced selection indicator */}
+        {selected && (
+          <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce-in">
+            <svg
+              className="w-3 h-3 text-white font-bold"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+        )}
+
+        {/* Playable indicator glow */}
+        {canPlay && !selected && (
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-emerald-400/10 via-transparent to-emerald-300/10 animate-pulse pointer-events-none" />
+        )}
+      </div>
     </div>
   );
 }
@@ -133,11 +205,13 @@ export default function PlayerHand({
     // Clear selection if hand changes (like when a card is played)
     setSelectedCard(null);
   }, [hand.length]);
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 flex justify-center h-32 md:h-48 z-50 pointer-events-none px-4 md:px-8">
-      <div className="relative w-full max-w-4xl h-full pointer-events-auto touch-action-none flex justify-center">
-        <div className="relative w-full max-w-2xl h-full">
+    <div className="fixed bottom-0 left-0 right-0 flex justify-center h-32 sm:h-40 md:h-48 z-50 pointer-events-none px-2 sm:px-4 md:px-8">
+      {/* Transparent background to not hide the table */}
+
+      <div className="relative w-full max-w-5xl h-full pointer-events-auto touch-action-none flex justify-center">
+        <div className="relative w-full max-w-3xl h-full">
+          {/* Hand cards with enhanced fan layout */}
           {sortedHand.map((card, index) => (
             <DraggableCard
               key={card.id}
@@ -150,6 +224,13 @@ export default function PlayerHand({
               setSelected={setSelectedCard}
             />
           ))}
+
+          {/* Subtle hand indicator for better UX */}
+          {canPlay && sortedHand.length > 0 && (
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-white/60 font-medium bg-black/20 px-3 py-1 rounded-full backdrop-blur-sm">
+              {selectedCard ? "Tap again to play" : "Tap to select a card"}
+            </div>
+          )}
         </div>
       </div>
     </div>

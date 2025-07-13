@@ -252,3 +252,305 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* ===== MODERN NATIVE APP ANIMATIONS ===== */
+
+/* Enhanced seat glow effect for active players */
+@keyframes seat-glow-gold {
+  0% { 
+    box-shadow: 0 0 10px 2px rgba(251, 192, 45, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 20px 4px rgba(251, 192, 45, 0.6);
+    transform: scale(1.02);
+  }
+  100% { 
+    box-shadow: 0 0 10px 2px rgba(251, 192, 45, 0.3);
+    transform: scale(1);
+  }
+}
+
+.animate-seat-glow-gold {
+  animation: seat-glow-gold 2s ease-in-out infinite;
+}
+
+/* Seat invitation animation for empty seats */
+@keyframes seat-invite {
+  0% { 
+    background: rgba(254, 240, 138, 0.1);
+    transform: scale(1);
+  }
+  50% { 
+    background: rgba(254, 240, 138, 0.2);
+    transform: scale(1.05);
+  }
+  100% { 
+    background: rgba(254, 240, 138, 0.1);
+    transform: scale(1);
+  }
+}
+
+.animate-seat-invite {
+  animation: seat-invite 3s ease-in-out infinite;
+}
+
+/* Card fly-in animation when played */
+@keyframes fly-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.8) rotate(-10deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-5px) scale(1.05) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.animate-fly-in {
+  animation: fly-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Smooth scale-in animation for UI elements */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+/* Enhanced pulse animation for interactive elements */
+@keyframes enhanced-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-enhanced-pulse {
+  animation: enhanced-pulse 2s ease-in-out infinite;
+}
+
+/* Gradient animation for backgrounds */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* Ripple effect for button interactions */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 0.6s linear;
+}
+
+/* Smooth slide-up animation for modals */
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(100px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* Bounce animation for notifications */
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Shake animation for errors */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Spotlight effect for highlighting */
+@keyframes spotlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.animate-spotlight {
+  animation: spotlight 1.5s ease-out;
+}
+
+/* ===== RESPONSIVE BREAKPOINT ADJUSTMENTS ===== */
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .animate-seat-glow-gold {
+    animation-duration: 2.5s; /* Slower on mobile to reduce battery drain */
+  }
+  
+  .animate-fly-in {
+    animation-duration: 0.4s; /* Faster on mobile for responsiveness */
+  }
+  
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-seat-glow-gold,
+    .animate-seat-invite,
+    .animate-enhanced-pulse,
+    .animate-gradient-shift {
+      animation: none;
+    }
+    
+    .animate-fly-in,
+    .animate-scale-in,
+    .animate-slide-up,
+    .animate-bounce-in {
+      animation-duration: 0.1s;
+    }
+  }
+}
+
+/* High-performance mode for older devices */
+@media (max-width: 480px) and (max-height: 800px) {
+  .animate-gradient-shift {
+    animation: none; /* Disable gradient animations on small screens */
+  }
+}
+
+/* ===== GLASS MORPHISM EFFECTS ===== */
+
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.glass-morphism-dark {
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ===== ENHANCED FOCUS STATES FOR ACCESSIBILITY ===== */
+
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.focus-ring:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* ===== HAPTIC FEEDBACK SIMULATION ===== */
+
+.haptic-light {
+  transition: transform 0.1s ease;
+}
+
+.haptic-light:active {
+  transform: scale(0.98);
+}
+
+.haptic-medium {
+  transition: transform 0.15s ease;
+}
+
+.haptic-medium:active {
+  transform: scale(0.95);
+}
+
+.haptic-strong {
+  transition: transform 0.2s ease;
+}
+
+.haptic-strong:active {
+  transform: scale(0.9);
+}

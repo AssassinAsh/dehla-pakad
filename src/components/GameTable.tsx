@@ -44,159 +44,172 @@ export default function GameTable({
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto relative flex flex-col md:flex-row items-center justify-center shadow-2xl px-2 sm:px-4">
-      {/* Mobile-first vertical layout with max height for mobile */}
-      <div className="w-full aspect-[3/4] md:aspect-[2/1] max-h-[50vh] md:max-h-none md:min-h-[450px] bg-gradient-to-b from-green-800 to-green-900 rounded-2xl relative border-4 md:border-8 border-yellow-800 overflow-hidden p-2 sm:p-3 md:p-8 flex flex-col items-center justify-between mb-24 md:mb-0">
-        {/* Table texture overlay */}
-        <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-20 mix-blend-overlay pointer-events-none" />
-        {/* Subtle inner shadow */}
-        <div className="absolute inset-0 shadow-inner rounded-xl pointer-events-none" />
+    <div className="w-full max-w-4xl mx-auto relative flex flex-col items-center justify-center px-2 sm:px-4">
+      {/* Responsive game table container */}
+      <div className="w-full h-[70vh] sm:h-[75vh] md:h-[80vh] lg:h-[85vh] max-h-[600px] bg-gradient-to-br from-green-800 via-green-900 to-green-950 rounded-2xl md:rounded-3xl relative border-4 md:border-6 border-yellow-700 shadow-2xl overflow-hidden p-3 sm:p-4 md:p-6 lg:p-8 mb-20 sm:mb-24 md:mb-0">
+        {/* Enhanced table texture with better blend mode */}
+        <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-25 mix-blend-overlay pointer-events-none" />
+        {/* Realistic felt texture overlay */}
+        <div className="absolute inset-0 bg-gradient-radial from-transparent via-green-800/10 to-green-900/20 pointer-events-none" />
+        {/* Enhanced inner shadow for depth */}
+        <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.3)] rounded-2xl md:rounded-3xl pointer-events-none" />
 
-        {/* Team 1 Score - top left - Blue theme */}
-        <div className="absolute top-3 left-3 z-30">
-          <div className="bg-gradient-to-b from-blue-500 to-blue-700 text-white text-xs px-3 py-2 rounded-lg border-2 border-blue-300 shadow-lg font-bold flex flex-col items-center min-w-[70px] md:min-w-[85px]">
-            <span className="font-bold text-blue-100 text-sm">Team 1</span>
+        {/* Modernized Team Score Cards with better spacing */}
+        <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-30">
+          <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 text-white text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 border-blue-300 shadow-xl font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] md:min-w-[100px] backdrop-blur-sm">
+            <span className="font-bold text-blue-100 text-sm sm:text-base">
+              Team 1
+            </span>
             <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px] text-blue-200">Tricks:</span>
-              <span className="text-yellow-300 text-lg font-extrabold">
+              <span className="text-[10px] sm:text-xs text-blue-200">
+                Tricks:
+              </span>
+              <span className="text-yellow-300 text-lg sm:text-xl font-black">
                 {team1Scores.tricks}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-blue-200">Tens:</span>
-              <span className="text-green-300 text-sm font-bold">
+              <span className="text-[10px] sm:text-xs text-blue-200">
+                Tens:
+              </span>
+              <span className="text-green-300 text-sm sm:text-base font-bold">
                 {team1Scores.tens}
               </span>
             </div>
           </div>
         </div>
-        {/* Team 2 Score - top right - Orange theme */}
-        <div className="absolute top-3 right-3 z-30">
-          <div className="bg-gradient-to-b from-orange-500 to-orange-700 text-white text-xs px-3 py-2 rounded-lg border-2 border-orange-300 shadow-lg font-bold flex flex-col items-center min-w-[70px] md:min-w-[85px]">
-            <span className="font-bold text-orange-100 text-sm">Team 2</span>
+
+        <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-30">
+          <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 text-white text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 border-orange-300 shadow-xl font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] md:min-w-[100px] backdrop-blur-sm">
+            <span className="font-bold text-orange-100 text-sm sm:text-base">
+              Team 2
+            </span>
             <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px] text-orange-200">Tricks:</span>
-              <span className="text-yellow-300 text-lg font-extrabold">
+              <span className="text-[10px] sm:text-xs text-orange-200">
+                Tricks:
+              </span>
+              <span className="text-yellow-300 text-lg sm:text-xl font-black">
                 {team2Scores.tricks}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-orange-200">Tens:</span>
-              <span className="text-green-300 text-sm font-bold">
+              <span className="text-[10px] sm:text-xs text-orange-200">
+                Tens:
+              </span>
+              <span className="text-green-300 text-sm sm:text-base font-bold">
                 {team2Scores.tens}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Trump indicator, sticky at top between right scorecard and top seat */}
+        {/* Enhanced trump indicator moved higher and outside play area */}
         {room.gameState.trump && (
-          <div className="absolute top-1/2 right-[22%] z-30 flex flex-col items-center md:top-6 md:right-[26%]">
-            <div className="bg-gradient-to-b from-purple-700 to-purple-900 border-2 border-yellow-400 shadow-lg rounded-full w-10 h-10 flex items-center justify-center">
+          <div className="absolute top-[8%] sm:top-[6%] right-[20%] sm:right-[18%] md:right-[22%] z-30 flex flex-col items-center">
+            <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-900 border-3 border-yellow-400 shadow-xl rounded-full w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center backdrop-blur-sm">
               <span
-                className={`text-2xl font-extrabold drop-shadow-sm ${getSuitColor(
+                className={`text-2xl sm:text-3xl font-black drop-shadow-lg ${getSuitColor(
                   room.gameState.trump
                 )}`}
               >
                 {getSuitSymbol(room.gameState.trump)}
               </span>
             </div>
-            <span className="text-[10px] font-bold text-yellow-200 mt-1 tracking-wide uppercase leading-none">
+            <span className="text-[9px] sm:text-[10px] font-bold text-yellow-200 mt-1 tracking-wider uppercase leading-none bg-black/30 px-2 py-0.5 rounded-full">
               Trump
             </span>
           </div>
         )}
 
-        {/* Trump Card Display - More prominent when just set */}
+        {/* Enhanced Trump Card Display with better animation */}
         {room.gameState.trump && room.gameState.trumpJustSet && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
-            <div className="relative">
-              <div className="bg-white p-1 rounded-lg border-4 border-yellow-500 shadow-2xl transform transition-all duration-700 animate-flip-short">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40">
+            <div className="relative animate-in zoom-in-50 duration-700">
+              <div className="bg-white p-2 rounded-xl border-4 border-yellow-500 shadow-2xl transform transition-all duration-700">
                 <div className="flex flex-col items-center">
-                  <div className="bg-yellow-400 p-2 rounded-t-md w-full text-center shadow-md">
+                  <div className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-400 p-3 rounded-t-lg w-full text-center shadow-lg">
                     <span
-                      className="font-extrabold text-xl text-purple-900 drop-shadow-lg px-3 py-1 rounded bg-yellow-200/90"
+                      className="font-black text-xl sm:text-2xl text-purple-900 drop-shadow-lg px-4 py-2 rounded bg-yellow-200/90"
                       style={{ textShadow: "0 2px 8px #fff, 0 0 2px #000" }}
                     >
                       Trump Set!
                     </span>
                   </div>
-                  <div className="p-4 flex flex-col items-center bg-white rounded-b-md">
+                  <div className="p-6 flex flex-col items-center bg-white rounded-b-lg">
                     <span
-                      className={`text-6xl font-bold ${getSuitColor(
+                      className={`text-7xl sm:text-8xl font-black ${getSuitColor(
                         room.gameState.trump
                       )}`}
                     >
                       {getSuitSymbol(room.gameState.trump)}
                     </span>
-                    <span className="mt-2 text-sm font-semibold text-gray-800">
-                      {room.gameState.trump.charAt(0).toUpperCase() +
-                        room.gameState.trump.slice(1)}
+                    <span className="mt-3 text-base sm:text-lg font-bold text-gray-800 capitalize">
+                      {room.gameState.trump}
                     </span>
                   </div>
                 </div>
               </div>
-              {/* Decorative cards underneath for a more dramatic effect */}
-              <div className="absolute -bottom-2 -right-2 -z-10 w-full h-full bg-white rounded-lg border-2 border-gray-300 transform rotate-3"></div>
-              <div className="absolute -bottom-4 -left-2 -z-20 w-full h-full bg-white rounded-lg border-2 border-gray-300 transform -rotate-3"></div>
+              {/* Enhanced decorative cards */}
+              <div className="absolute -bottom-3 -right-3 -z-10 w-full h-full bg-white rounded-xl border-2 border-gray-300 transform rotate-6 opacity-60"></div>
+              <div className="absolute -bottom-6 -left-3 -z-20 w-full h-full bg-white rounded-xl border-2 border-gray-300 transform -rotate-6 opacity-40"></div>
             </div>
           </div>
         )}
 
-        {/* Dealer & Deck - shown during dealing phase */}
+        {/* Enhanced dealing animation with modern cards */}
         {isDealing && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
-            <div className="relative">
-              <div className="absolute -left-1 -top-1 opacity-40">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center">
+            <div className="relative animate-pulse">
+              <div className="absolute -left-2 -top-2 opacity-30">
                 <Image
                   src="/cards/back.png"
                   alt="Deck"
-                  width={64}
-                  height={90}
-                  className="rounded-md"
+                  width={72}
+                  height={100}
+                  className="rounded-lg shadow-lg"
                 />
               </div>
-              <div className="absolute -left-0.5 -top-0.5 opacity-70">
+              <div className="absolute -left-1 -top-1 opacity-60">
                 <Image
                   src="/cards/back.png"
                   alt="Deck"
-                  width={64}
-                  height={90}
-                  className="rounded-md"
+                  width={72}
+                  height={100}
+                  className="rounded-lg shadow-lg"
                 />
               </div>
               <Image
                 src="/cards/back.png"
                 alt="Deck"
-                width={64}
-                height={90}
-                className="rounded-md drop-shadow-lg animate-bounce relative z-10"
+                width={72}
+                height={100}
+                className="rounded-lg drop-shadow-2xl animate-bounce relative z-10"
               />
             </div>
             {dealerSeat && (
-              <span className="mt-3 text-yellow-300 font-bold text-sm bg-black/70 px-3 py-1.5 rounded-md border border-yellow-800 shadow-lg">
+              <span className="mt-4 text-yellow-300 font-bold text-sm sm:text-base bg-black/80 px-4 py-2 rounded-full border border-yellow-600 shadow-xl backdrop-blur-sm">
                 Dealer: Seat {dealerSeat}
               </span>
             )}
           </div>
         )}
 
-        {/* Play area where cards are played - sized so 20% of each seat overlaps */}
-        <div className="relative flex-1 flex items-center justify-center w-[75%] h-[75%] min-w-[300px] min-h-[200px] md:min-w-[350px] md:min-h-[240px] py-2 md:py-4">
+        {/* Improved play area with proper spacing */}
+        <div className="absolute inset-[15%] sm:inset-[12%] md:inset-[15%] lg:inset-[18%] flex items-center justify-center">
           <PlayArea room={room} mySeat={mySeat} />
 
-          {/* Your Turn Indicator - Center of table */}
+          {/* Enhanced turn indicator with better visibility */}
           {room.gameState.status === "in-progress" &&
             room.currentPlayer === mySeat &&
             room.currentTrick.length < 4 && (
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
                 <div
-                  className="bg-gradient-to-r from-green-400 to-green-600 text-white px-6 py-3 rounded-full border-3 border-green-300 shadow-2xl animate-pulse font-bold text-lg flex items-center gap-2"
-                  style={{ boxShadow: "0 8px 32px rgba(34, 197, 94, 0.5)" }}
+                  className="bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-400 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full border-3 border-green-300 shadow-2xl animate-pulse font-bold text-base sm:text-lg flex items-center gap-2 sm:gap-3 backdrop-blur-sm"
+                  style={{ boxShadow: "0 12px 40px rgba(34, 197, 94, 0.6)" }}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
+                    className="h-5 w-5 sm:h-6 sm:w-6 animate-spin"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -204,11 +217,11 @@ export default function GameTable({
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={2}
+                      strokeWidth={3}
                       d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
                     />
                   </svg>
-                  <span>Your Turn</span>
+                  <span className="font-black">Your Turn</span>
                 </div>
               </div>
             )}
