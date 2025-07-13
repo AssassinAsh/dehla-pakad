@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { RoomSummary } from "@/types/game";
 import { io, Socket } from "socket.io-client";
 import RulesModal from "@/components/RulesModal"; // Import the modal
 
@@ -24,7 +23,7 @@ export default function Home() {
 
     // Connection status for debugging
     socket.on("connect", () => {
-      console.log("Connected to Socket.IO server with ID:", socket.id);
+      // Connection established
     });
 
     socket.on("connect_error", (error) => {
@@ -32,8 +31,7 @@ export default function Home() {
     });
 
     // Listen for room list updates - currently logging only
-    socket.on("roomsList", (roomsList: RoomSummary[]) => {
-      console.log("Received rooms list:", roomsList);
+    socket.on("roomsList", () => {
       // We're not displaying the rooms list at this time
     });
 
@@ -60,11 +58,8 @@ export default function Home() {
       return;
     }
 
-    console.log("Emitting createRoom event with name:", playerName);
-
     // Add a timeout to handle cases where the callback doesn't fire
     const timeoutId = setTimeout(() => {
-      console.warn("Room creation timed out");
       setIsCreatingRoom(false);
       alert("Room creation timed out. Please try again.");
     }, 5000);
@@ -74,10 +69,8 @@ export default function Home() {
       playerName,
       (roomId: string | null) => {
         clearTimeout(timeoutId);
-        console.log("Received room creation callback with roomId:", roomId);
 
         if (roomId) {
-          console.log("Navigating to room:", roomId);
           const roomUrl = `/room/${roomId}?name=${encodeURIComponent(
             playerName
           )}`;

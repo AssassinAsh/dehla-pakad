@@ -10,7 +10,6 @@ export class BotManager {
     // Check if seat is already occupied
     const occupiedSeats = room.players.map((p) => p.seat);
     if (occupiedSeats.includes(seat)) {
-      console.log(`Seat ${seat} is already occupied`);
       return null;
     }
 
@@ -23,7 +22,6 @@ export class BotManager {
     existingBots.push(bot);
     this.botPlayers.set(roomId, existingBots);
 
-    console.log(`Added bot ${bot.name} to seat ${seat} in room ${roomId}`);
     return bot;
   }
 
@@ -48,7 +46,6 @@ export class BotManager {
     const bots = this.botPlayers.get(roomId);
     if (bots) {
       this.botPlayers.delete(roomId);
-      console.log(`Removed bots from room ${roomId}`);
     }
     return bots || [];
   }
@@ -60,7 +57,6 @@ export class BotManager {
       bots.forEach((bot) => {
         bot.isReady = true;
       });
-      console.log(`Made ${bots.length} bots ready in room ${roomId}`);
     }
   }
 
@@ -172,19 +168,13 @@ export class BotManager {
     // Always get the latest room state to avoid race conditions
     const latestRoom = RoomManager.getRoom(roomId);
     if (!latestRoom) {
-      console.log("Room not found in handleTurn");
       return;
     }
 
     // Validate that it's actually this player's turn
     if (!latestRoom.currentPlayer) {
-      console.log("No current player set");
       return;
     }
-
-    console.log(
-      `[TURN HANDLER] Called with room.currentPlayer = ${latestRoom.currentPlayer}`
-    );
 
     // Find the current player
     const currentPlayer = latestRoom.players.find(
@@ -192,70 +182,43 @@ export class BotManager {
     );
 
     if (!currentPlayer) {
-      console.log("No current player found for turn");
       return;
     }
-
-    console.log(
-      `[TURN HANDLER] Current player: ${currentPlayer.name} (seat ${
-        currentPlayer.seat
-      }, isBot: ${this.isBot(currentPlayer)})`
-    );
 
     // If it's a bot's turn, automatically make them play
     if (this.isBot(currentPlayer)) {
       // Prevent multiple simultaneous plays by checking thinking state
       if (currentPlayer.isThinking) {
-        console.log(`Bot ${currentPlayer.name} is already thinking, skipping`);
         return;
       }
 
-      console.log(
-        `[BOT TURN] Bot ${currentPlayer.name} (seat ${currentPlayer.seat}) is taking their turn`
-      );
-
       // Make the bot play automatically after a short delay
       this.makeAutomaticBotPlay(roomId, currentPlayer, io);
-    } else {
-      // Human player's turn - just wait for them to play
-      console.log(
-        `[HUMAN TURN] Human player ${currentPlayer.name} (seat ${currentPlayer.seat}) has the turn`
-      );
     }
+    // Human player's turn - just wait for them to play
   }
 
   // Make a bot play automatically when it's their turn
   static makeAutomaticBotPlay(roomId, currentPlayer, io) {
     // Prevent multiple simultaneous plays
     if (currentPlayer.isThinking) {
-      console.log(
-        `Bot ${currentPlayer.name} is already thinking, skipping play`
-      );
       return;
     }
 
     // Set thinking flag to prevent concurrent plays
     currentPlayer.isThinking = true;
 
-    console.log(
-      `Bot ${currentPlayer.name} (seat ${currentPlayer.seat}) is choosing a card...`
-    );
-
     // Add a delay to make bot play feel natural
     setTimeout(() => {
       try {
         const room = RoomManager.getRoom(roomId);
         if (!room) {
-          console.log("Room not found for automatic bot play");
           currentPlayer.isThinking = false;
           return;
         }
 
         // Double-check that it's still this bot's turn
         if (room.currentPlayer !== currentPlayer.seat) {
-          console.log(
-            `Not ${currentPlayer.name}'s turn anymore (current: ${room.currentPlayer})`
-          );
           currentPlayer.isThinking = false;
           return;
         }
@@ -273,10 +236,6 @@ export class BotManager {
           currentPlayer.isThinking = false;
           return;
         }
-
-        console.log(
-          `Bot ${currentPlayer.name} chose ${chosenCard.rank}${chosenCard.suit}`
-        );
 
         // Now simulate the same card play that a human would do
         // This uses the exact same logic as the human playCard handler
@@ -296,14 +255,9 @@ export class BotManager {
     // Clear thinking flag
     player.isThinking = false;
 
-    console.log(
-      `Bot ${player.name} is playing: ${chosenCard.rank}${chosenCard.suit}`
-    );
-
     // Get the room
     const room = RoomManager.getRoom(roomId);
     if (!room) {
-      console.log("Room not found for card play simulation");
       return;
     }
 
@@ -343,9 +297,6 @@ export class BotManager {
       if (hasLeadSuit) {
         // Invalid play for humans - send error. For bots, this shouldn't happen
         if (socket) {
-          console.log(
-            `Player ${player.seat} illegally played ${playedCard.id}. Must follow suit ${leadSuit}.`
-          );
           return socket.emit("error", `You must follow the suit: ${leadSuit}`);
         } else {
           console.error(
@@ -359,7 +310,6 @@ export class BotManager {
           room.gameState.trump = playedCard.suit;
           room.gameState.trumpJustSet = true; // For animation
           room.trumpSetThisTrick = true; // Track for dealing logic
-          console.log(`Trump suit has been set to: ${room.gameState.trump}`);
 
           // Show the trump announcement for 2 seconds, then clear flag
           setTimeout(() => {
@@ -374,7 +324,6 @@ export class BotManager {
 
     // Remove the card from player's hand
     player.hand.splice(cardIndex, 1);
-    console.log(`Player ${player.seat} played card:`, playedCard);
 
     // Add the played card to the current trick
     room.currentTrick.push({ card: playedCard, seat: player.seat });
@@ -409,7 +358,6 @@ export class BotManager {
       room.currentTrick,
       room.gameState.trump
     );
-    console.log("Trick completed, winner:", trickWinnerSeat);
 
     const completedTrick = {
       winner: trickWinnerSeat,
@@ -421,11 +369,6 @@ export class BotManager {
 
     if (trickWinnerSeat === room.gameState.lastTrickWinnerSeat || isLastTrick) {
       // Consecutive win OR last trick: Collect the stack
-      console.log(
-        `Player ${trickWinnerSeat} wins the stack. Consecutive: ${
-          trickWinnerSeat === room.gameState.lastTrickWinnerSeat
-        }, Last Trick: ${isLastTrick}`
-      );
 
       const winnerTeam =
         trickWinnerSeat === 1 || trickWinnerSeat === 3 ? "team1" : "team2";
@@ -448,9 +391,7 @@ export class BotManager {
       room.gameState.lastTrickWinnerSeat = null; // Reset for next stack
     } else {
       // Not a consecutive win: Add to stack
-      console.log(
-        `Player ${trickWinnerSeat} wins trick, but not stack. Stacking.`
-      );
+
       room.stackedTricks.push(completedTrick);
       room.gameState.lastTrickWinnerSeat = trickWinnerSeat;
     }
@@ -475,27 +416,16 @@ export class BotManager {
           room.gameState.draw = true;
         else room.gameState.draw = false;
         room.gameState.status = "finished";
-        console.log(
-          "Game finished. Final Scores:",
-          room.gameState.scores,
-          "Kot:",
-          room.gameState.kot,
-          "Draw:",
-          room.gameState.draw
-        );
+        console.log("Game finished");
 
         // Remove all bots from the room after game completion
         const bots = this.getBotsInRoom(roomId);
         if (bots.length > 0) {
-          console.log(
-            `Removing ${bots.length} bots from room ${roomId} after game completion`
-          );
           bots.forEach((bot) => {
             // Remove bot from room.players
             const botIndex = room.players.findIndex((p) => p.id === bot.id);
             if (botIndex !== -1) {
               room.players.splice(botIndex, 1);
-              console.log(`Removed bot ${bot.name} from room ${roomId}`);
             }
           });
 

@@ -46,34 +46,46 @@ export default function GameTable({
   return (
     <div className="w-full max-w-3xl mx-auto relative flex flex-col md:flex-row items-center justify-center shadow-2xl px-2 sm:px-4">
       {/* Mobile-first vertical layout with max height for mobile */}
-      <div className="w-full aspect-[3/4] md:aspect-[2/1] max-h-[60vh] md:max-h-none md:min-h-[450px] bg-gradient-to-b from-green-800 to-green-900 rounded-2xl relative border-4 md:border-8 border-yellow-800 overflow-hidden p-2 sm:p-3 md:p-8 flex flex-col items-center justify-between mb-24 md:mb-0">
+      <div className="w-full aspect-[3/4] md:aspect-[2/1] max-h-[50vh] md:max-h-none md:min-h-[450px] bg-gradient-to-b from-green-800 to-green-900 rounded-2xl relative border-4 md:border-8 border-yellow-800 overflow-hidden p-2 sm:p-3 md:p-8 flex flex-col items-center justify-between mb-24 md:mb-0">
         {/* Table texture overlay */}
         <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-20 mix-blend-overlay pointer-events-none" />
         {/* Subtle inner shadow */}
         <div className="absolute inset-0 shadow-inner rounded-xl pointer-events-none" />
 
-        {/* Team 1 Score - top left */}
+        {/* Team 1 Score - top left - Blue theme */}
         <div className="absolute top-3 left-3 z-30">
-          <div className="bg-gradient-to-b from-blue-900 to-blue-700 text-blue-100 text-xs px-2 py-1 rounded-full border-2 border-blue-700 shadow font-bold flex flex-col items-center min-w-[54px] md:min-w-[70px]">
-            <span className="font-bold">T1</span>
-            <span className="text-yellow-300 text-base">
-              {team1Scores.tricks}
-            </span>
-            <span className="text-[10px] text-blue-200">
-              {team1Scores.tens} tens
-            </span>
+          <div className="bg-gradient-to-b from-blue-500 to-blue-700 text-white text-xs px-3 py-2 rounded-lg border-2 border-blue-300 shadow-lg font-bold flex flex-col items-center min-w-[70px] md:min-w-[85px]">
+            <span className="font-bold text-blue-100 text-sm">Team 1</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[10px] text-blue-200">Tricks:</span>
+              <span className="text-yellow-300 text-lg font-extrabold">
+                {team1Scores.tricks}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-blue-200">Tens:</span>
+              <span className="text-green-300 text-sm font-bold">
+                {team1Scores.tens}
+              </span>
+            </div>
           </div>
         </div>
-        {/* Team 2 Score - top right */}
+        {/* Team 2 Score - top right - Orange theme */}
         <div className="absolute top-3 right-3 z-30">
-          <div className="bg-gradient-to-b from-green-900 to-green-700 text-green-100 text-xs px-2 py-1 rounded-full border-2 border-green-700 shadow font-bold flex flex-col items-center min-w-[54px] md:min-w-[70px]">
-            <span className="font-bold">T2</span>
-            <span className="text-yellow-300 text-base">
-              {team2Scores.tricks}
-            </span>
-            <span className="text-[10px] text-green-200">
-              {team2Scores.tens} tens
-            </span>
+          <div className="bg-gradient-to-b from-orange-500 to-orange-700 text-white text-xs px-3 py-2 rounded-lg border-2 border-orange-300 shadow-lg font-bold flex flex-col items-center min-w-[70px] md:min-w-[85px]">
+            <span className="font-bold text-orange-100 text-sm">Team 2</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[10px] text-orange-200">Tricks:</span>
+              <span className="text-yellow-300 text-lg font-extrabold">
+                {team2Scores.tricks}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-orange-200">Tens:</span>
+              <span className="text-green-300 text-sm font-bold">
+                {team2Scores.tens}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -169,9 +181,37 @@ export default function GameTable({
           </div>
         )}
 
-        {/* Play area where cards are played */}
-        <div className="relative flex-1 flex items-center justify-center w-full min-h-[120px] md:min-h-[200px] py-4 md:py-10">
+        {/* Play area where cards are played - sized so 20% of each seat overlaps */}
+        <div className="relative flex-1 flex items-center justify-center w-[75%] h-[75%] min-w-[300px] min-h-[200px] md:min-w-[350px] md:min-h-[240px] py-2 md:py-4">
           <PlayArea room={room} mySeat={mySeat} />
+
+          {/* Your Turn Indicator - Center of table */}
+          {room.gameState.status === "in-progress" &&
+            room.currentPlayer === mySeat &&
+            room.currentTrick.length < 4 && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+                <div
+                  className="bg-gradient-to-r from-green-400 to-green-600 text-white px-6 py-3 rounded-full border-3 border-green-300 shadow-2xl animate-pulse font-bold text-lg flex items-center gap-2"
+                  style={{ boxShadow: "0 8px 32px rgba(34, 197, 94, 0.5)" }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+                    />
+                  </svg>
+                  <span>Your Turn</span>
+                </div>
+              </div>
+            )}
         </div>
 
         {/* Player Avatars - mobile: vertical stack, desktop: 2x2 */}
@@ -187,7 +227,7 @@ export default function GameTable({
         <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center">
           {renderSeat(seatOrder[3])}
         </div>
-        {/* Bottom (you) */}
+        {/* Bottom (you) - back to original position with smaller size */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
           {renderSeat(seatOrder[0])}
         </div>
@@ -208,73 +248,102 @@ export default function GameTable({
         className={`relative flex flex-col items-center select-none ${
           isActive ? "animate-seat-glow-gold" : ""
         }`}
-        style={{ minWidth: 70 }}
+        style={{ minWidth: 60 }}
         onClick={() => !player && onSeatClick && onSeatClick(seat)}
       >
-        <div
-          className={`rounded-full w-16 h-16 md:w-20 md:h-20 flex items-center justify-center mb-1 shadow-xl border-4 transition-all duration-300
-            ${
-              player
-                ? isActive
-                  ? "border-yellow-400 bg-gradient-to-b from-yellow-100/80 to-yellow-200/60"
-                  : teamColor === "team1"
-                  ? "border-blue-700 bg-gradient-to-b from-blue-900/80 to-blue-700/60"
-                  : "border-green-700 bg-gradient-to-b from-green-900/80 to-green-700/60"
-                : "border-dashed border-yellow-300 bg-gradient-to-b from-yellow-50/80 to-yellow-100/60 animate-seat-invite"
-            }
-            ${isMe && !isActive ? "animate-seat-glow-soft" : ""}
-          `}
-        >
-          {player ? (
-            <span
-              className={`avatar flex items-center justify-center font-bold text-xl md:text-2xl
-                ${isMe ? "text-yellow-100 scale-110" : "text-white"}
-                w-12 h-12 md:w-16 md:h-16 rounded-full bg-gray-900/90 shadow-xl transition-all duration-300`}
-              title={player.name}
-              tabIndex={0}
-              role="button"
-              aria-label={`Player ${player.name}`}
-            >
-              {player.name.charAt(0).toUpperCase()}
-            </span>
-          ) : (
-            <span
-              className="avatar flex items-center justify-center font-bold text-xl md:text-2xl text-yellow-700 w-12 h-12 md:w-16 md:h-16 rounded-full bg-yellow-100/80 border-2 border-yellow-300 shadow transition-all duration-200 cursor-pointer"
-              title="Join this seat"
-              tabIndex={0}
-              role="button"
-              aria-label={`Join seat ${seat}`}
-            >
-              +
-            </span>
-          )}
-          {/* 'You' badge */}
-          {isMe && (
-            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-[11px] font-bold px-2 py-0.5 rounded-full border border-yellow-600 shadow-md z-10">
-              You
-            </span>
-          )}
-          {/* Dealer badge */}
-          {isDealer && (
-            <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-purple-700 text-yellow-100 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-900 shadow z-10">
-              Dealer
-            </span>
-          )}
-        </div>
-        {/* Name and seat info */}
+        {/* Name and seat info - moved above avatar */}
         <span
-          className={`text-xs font-semibold text-center px-1 mt-1 ${
+          className={`text-[10px] font-semibold text-center px-1 mb-0.5 ${
             isMe
-              ? "text-yellow-300 font-bold"
+              ? teamColor === "team1"
+                ? "text-blue-200 font-bold"
+                : "text-orange-200 font-bold"
               : player
               ? teamColor === "team1"
-                ? "text-blue-300"
-                : "text-green-200"
+                ? "text-blue-200"
+                : "text-orange-200"
               : "text-gray-200"
           }`}
         >
-          {player ? player.name : "Empty Seat"}
+          {player ? `${player.name}${isDealer ? " (D)" : ""}` : "Empty Seat"}
         </span>
+
+        <div
+          className={`relative rounded-xl w-16 h-16 md:w-20 md:h-20 flex items-center justify-center shadow-xl border-3 transition-all duration-300 cursor-pointer group
+            ${
+              player
+                ? isActive
+                  ? "border-yellow-400 bg-gradient-to-br from-yellow-200 via-yellow-100 to-yellow-50 shadow-yellow-400/50"
+                  : teamColor === "team1"
+                  ? "border-blue-400 bg-gradient-to-br from-white via-blue-50 to-blue-100 shadow-blue-200/60"
+                  : "border-orange-400 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 shadow-orange-200/40"
+                : "border-dashed border-yellow-400 bg-gradient-to-br from-yellow-50/80 to-yellow-100/60 animate-seat-invite hover:from-yellow-100 hover:to-yellow-200"
+            }
+            ${
+              isMe && !isActive
+                ? teamColor === "team1"
+                  ? "ring-2 ring-blue-300/60 ring-offset-1"
+                  : "ring-2 ring-orange-300/60 ring-offset-1"
+                : ""
+            }
+          `}
+        >
+          {/* Team indicator corners */}
+          {player && (
+            <>
+              <div
+                className={`absolute -top-0.5 -left-0.5 w-3 h-3 rounded-full border border-white shadow-sm ${
+                  teamColor === "team1" ? "bg-blue-500" : "bg-orange-500"
+                }`}
+              />
+              <div
+                className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border border-white shadow-sm ${
+                  teamColor === "team1" ? "bg-blue-500" : "bg-orange-500"
+                }`}
+              />
+              <div
+                className={`absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full border border-white shadow-sm ${
+                  teamColor === "team1" ? "bg-blue-500" : "bg-orange-500"
+                }`}
+              />
+              <div
+                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border border-white shadow-sm ${
+                  teamColor === "team1" ? "bg-blue-500" : "bg-orange-500"
+                }`}
+              />
+            </>
+          )}
+
+          {/* Player avatar or empty seat */}
+          {player ? (
+            <div className="relative">
+              <div
+                className={`w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center font-bold text-lg md:text-xl shadow-inner transition-all duration-300 group-hover:scale-105
+                  ${
+                    teamColor === "team1"
+                      ? "bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-blue-500/50"
+                      : "bg-gradient-to-br from-orange-600 to-orange-800 text-white shadow-orange-500/50"
+                  }
+                `}
+                title={player.name}
+                tabIndex={0}
+                role="button"
+                aria-label={`Player ${player.name}`}
+              >
+                {player.name.charAt(0).toUpperCase()}
+              </div>
+
+              {/* Glow effect for active player */}
+              {isActive && (
+                <div className="absolute inset-0 rounded-lg bg-yellow-400/20 animate-pulse pointer-events-none" />
+              )}
+            </div>
+          ) : (
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-gradient-to-br from-yellow-200 to-yellow-300 flex items-center justify-center font-bold text-2xl md:text-3xl text-yellow-700 shadow-inner transition-all duration-200 group-hover:scale-110 group-hover:from-yellow-300 group-hover:to-yellow-400">
+              +
+            </div>
+          )}
+        </div>
 
         {/* Bot controls for host on empty seats */}
         {!player && isHost && !room.gameStarted && onAddBot && (

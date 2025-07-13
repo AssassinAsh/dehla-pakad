@@ -11,10 +11,10 @@ interface PlayAreaProps {
 
 // Defines the position styling for each card in the play area, relative to the local player.
 const cardPositions = [
-  "bottom-2 left-1/2 -translate-x-1/2", // 0: Player at bottom
-  "top-1/2 left-2 -translate-y-1/2", // 1: Player on left
-  "top-2 left-1/2 -translate-x-1/2", // 2: Player at top
-  "top-1/2 right-2 -translate-y-1/2", // 3: Player on right
+  "bottom-8 left-1/2 -translate-x-1/2", // 0: Player at bottom - moved up to avoid seat overlap
+  "top-1/2 left-8 -translate-y-1/2", // 1: Player on left - moved inward
+  "top-8 left-1/2 -translate-x-1/2", // 2: Player at top - moved down
+  "top-1/2 right-8 -translate-y-1/2", // 3: Player on right - moved inward
 ];
 
 interface DroppablePlayAreaProps {
@@ -137,8 +137,8 @@ export default function PlayArea({ room, mySeat }: PlayAreaProps) {
                   isLatest ? "ring-4 ring-yellow-400 animate-fly-in" : ""
                 }`}
                 style={{
-                  width: 80,
-                  height: 112,
+                  width: 60,
+                  height: 84,
                   background: "#fff",
                   position: "relative",
                   boxShadow: isLatest
@@ -149,8 +149,8 @@ export default function PlayArea({ room, mySeat }: PlayAreaProps) {
                 <Image
                   src={`/cards/${cardDisplayName}.png`}
                   alt={card.id}
-                  width={80}
-                  height={112}
+                  width={60}
+                  height={84}
                   className="rounded-md"
                   priority={isLatest}
                 />

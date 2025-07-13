@@ -16,16 +16,10 @@ export default function setupSocketIO(server) {
   });
 
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
-
     // Handle room creation
     socket.on("createRoom", (playerName, callback) => {
-      console.log(
-        `User ${socket.id} is creating a room with name ${playerName}`
-      );
       try {
         const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        console.log(`Generated room ID: ${roomId}`);
 
         const player = {
           id: socket.id,
@@ -38,8 +32,6 @@ export default function setupSocketIO(server) {
 
         const room = RoomManager.createRoom(roomId, player);
         socket.join(roomId);
-
-        console.log(`Room ${roomId} created, sending callback and room update`);
 
         // Ensure callback is a function before calling it
         if (typeof callback === "function") {
@@ -125,35 +117,26 @@ export default function setupSocketIO(server) {
       try {
         const room = RoomManager.getRoom(roomId);
         if (!room || room.gameState.status !== "in-progress") {
-          console.log("Invalid room state for playing card");
           return socket.emit("error", "Cannot play card: game not in progress");
         }
 
         // Find player by name, as socket.id can change on reconnect
         const player = room.players.find((p) => p.name === playerName);
         if (!player) {
-          console.log(
-            `Player not found by name: ${playerName} in room ${roomId}`
-          );
           return socket.emit("error", "Player not found.");
         }
 
         // Optional: Update socket.id if it's different (handles reconnection)
         if (player.id !== socket.id) {
-          console.log(
-            `Updating socket ID for ${playerName} from ${player.id} to ${socket.id}`
-          );
           player.id = socket.id;
         }
 
         if (room.currentPlayer !== player.seat) {
-          console.log("Not player's turn:", player.seat, room.currentPlayer);
           return socket.emit("error", "It's not your turn.");
         }
 
         const cardIndex = player.hand.findIndex((c) => c.id === cardId);
         if (cardIndex === -1) {
-          console.log("Invalid card played:", cardId);
           return socket.emit("error", "Invalid card played.");
         }
 
@@ -288,10 +271,6 @@ export default function setupSocketIO(server) {
           // Update room and broadcast
           RoomManager.updateRoom(roomId, room);
           io.to(roomId).emit("roomUpdated", room);
-
-          console.log(
-            `Added bot ${bot.name} to seat ${seat} in room ${roomId}`
-          );
         } else {
           socket.emit("error", "Seat is already occupied");
         }
@@ -320,8 +299,6 @@ export default function setupSocketIO(server) {
           // Update room and broadcast
           RoomManager.updateRoom(roomId, room);
           io.to(roomId).emit("roomUpdated", room);
-
-          console.log(`Added ${bots.length} bots to room ${roomId}`);
         }
       } catch (error) {
         console.error("Error adding bots:", error);
@@ -359,9 +336,6 @@ export default function setupSocketIO(server) {
             const botIndex = room.players.findIndex((p) => p.id === bot.id);
             if (botIndex !== -1) {
               room.players.splice(botIndex, 1);
-              console.log(
-                `Removed bot ${bot.name} from room ${roomId} during replay`
-              );
             }
           });
 
@@ -419,8 +393,6 @@ export default function setupSocketIO(server) {
 
     // Handle disconnection
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
-
       // Give a grace period for reconnection, e.g., 5 seconds
       setTimeout(() => {
         const room = RoomManager.getRoomByPlayerId(socket.id);
@@ -428,9 +400,6 @@ export default function setupSocketIO(server) {
           // Check if the player has reconnected with a new socket ID
           const player = room.players.find((p) => p.id === socket.id);
           if (player && !player.isConnected) {
-            console.log(
-              `Player ${player.name} did not reconnect in time. Removing.`
-            );
             RoomManager.removePlayerFromRoom(room.id, socket.id);
             const updatedRoom = RoomManager.getRoom(room.id);
             if (updatedRoom) {

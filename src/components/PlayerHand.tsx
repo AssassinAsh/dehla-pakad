@@ -135,42 +135,23 @@ export default function PlayerHand({
   }, [hand.length]);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 flex justify-center h-32 md:h-48 z-50 pointer-events-none">
-      <div className="relative w-full max-w-3xl h-full pointer-events-auto touch-action-none">
-        {sortedHand.map((card, index) => (
-          <DraggableCard
-            key={card.id}
-            card={card}
-            canPlay={canPlay}
-            index={index}
-            totalCards={sortedHand.length}
-            onPlay={onPlayCard}
-            selected={selectedCard === card.id}
-            setSelected={setSelectedCard}
-          />
-        ))}
-      </div>
-
-      {/* Your Turn Indicator - Moved above the cards to prevent overlap */}
-      {canPlay && (
-        <div className="absolute bottom-[90px] md:bottom-[130px] left-1/2 transform -translate-x-1/2 bg-green-800 text-white px-4 py-2 rounded-full border-2 border-green-500 shadow-lg animate-pulse z-50 text-base md:text-lg font-bold flex items-center gap-2">
-          <span>Your Turn</span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+    <div className="fixed bottom-0 left-0 right-0 flex justify-center h-32 md:h-48 z-50 pointer-events-none px-4 md:px-8">
+      <div className="relative w-full max-w-4xl h-full pointer-events-auto touch-action-none flex justify-center">
+        <div className="relative w-full max-w-2xl h-full">
+          {sortedHand.map((card, index) => (
+            <DraggableCard
+              key={card.id}
+              card={card}
+              canPlay={canPlay}
+              index={index}
+              totalCards={sortedHand.length}
+              onPlay={onPlayCard}
+              selected={selectedCard === card.id}
+              setSelected={setSelectedCard}
             />
-          </svg>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

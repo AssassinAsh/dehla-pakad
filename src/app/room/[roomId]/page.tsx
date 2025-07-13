@@ -67,11 +67,8 @@ export default function RoomPage() {
 
     // Connection status for debugging
     socket.on("connect", () => {
-      console.log("Connected to Socket.IO server with ID:", socket.id);
-
       // Explicitly check if we're in a valid room once connected
       if (roomId) {
-        console.log("Checking room:", roomId);
         socket.emit("checkRoom", roomId, (exists: boolean) => {
           if (!exists) {
             console.error("Room doesn't exist:", roomId);
@@ -104,7 +101,6 @@ export default function RoomPage() {
 
     // Join room for updates (server will add to socket.join on create/join events)
     socket.on("roomUpdated", (updated: Room) => {
-      console.log("Room updated:", updated);
       setRoom(updated);
 
       // If we're already in the player list, update our current player
@@ -137,17 +133,11 @@ export default function RoomPage() {
 
   const playCard = (card: Card) => {
     if (!currentPlayer || !room || !socketRef.current) {
-      console.log("Cannot play card: invalid state", { currentPlayer, room });
       return;
     }
     if (room.currentPlayer !== currentPlayer.seat) {
-      console.log("Not your turn", {
-        current: room.currentPlayer,
-        player: currentPlayer.seat,
-      });
       return;
     }
-    console.log(`Playing card: ${card.id} as player ${playerName}`);
     // Send to server with playerName for identification
     socketRef.current.emit("playCard", room.id, card.id, playerName);
   };
@@ -165,13 +155,9 @@ export default function RoomPage() {
         room &&
         room.currentPlayer === currentPlayer.seat
       ) {
-        console.log("Card dropped and played:", card);
         playCard(card);
-      } else {
-        console.log("Card drop rejected - not your turn or card not found");
       }
     } else {
-      console.log("Card not dropped on play area:", over?.id);
     }
   };
 
@@ -281,7 +267,6 @@ export default function RoomPage() {
   const handleAddBot = (seat: number) => {
     if (socketRef.current && room) {
       // Add a bot to the specific seat with medium difficulty
-      console.log(`Adding bot to seat ${seat}`);
       socketRef.current.emit("addBotToSeat", room.id, seat, "medium");
     }
   };
@@ -535,35 +520,40 @@ export default function RoomPage() {
             isHost={currentPlayer?.name === room.host}
           />
 
-          {/* Ready Button System */}
+          {/* Ready Button System - Centered in viewport */}
           {!room.gameStarted && room.players.length === 4 && (
-            <div className="flex flex-col items-center mt-4">
-              {!currentPlayer?.isReady ? (
-                <button
-                  onClick={handleReady}
-                  className="bg-gradient-to-r from-green-400 to-green-600 text-white font-bold py-3 px-8 rounded-lg hover:from-green-300 hover:to-green-500 transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-700 animate-pulse"
-                >
-                  Ready
-                </button>
-              ) : (
-                <div className="text-yellow-300 font-bold text-lg animate-pulse mt-2">
-                  Waiting for others to get ready…
-                </div>
-              )}
-              {/* Show which players are ready */}
-              <div className="flex flex-wrap gap-2 mt-4 justify-center">
-                {room.players.map((p) => (
-                  <span
-                    key={p.name}
-                    className={`px-3 py-1 rounded-full text-sm font-semibold border-2 shadow-md ${
-                      p.isReady
-                        ? "bg-green-500 border-green-700 text-white"
-                        : "bg-gray-700 border-gray-500 text-gray-300"
-                    }`}
+            <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
+              <div className="flex flex-col items-center space-y-6 pointer-events-auto">
+                {!currentPlayer?.isReady ? (
+                  <button
+                    onClick={handleReady}
+                    className="bg-gradient-to-r from-green-400 to-green-600 text-white font-bold py-4 px-12 rounded-xl hover:from-green-300 hover:to-green-500 transition-all transform hover:scale-105 shadow-2xl text-2xl border-3 border-green-700 animate-pulse"
+                    style={{
+                      boxShadow: "0 10px 40px 0 rgba(34, 197, 94, 0.4)",
+                    }}
                   >
-                    {p.name} {p.isReady ? "✓" : ""}
-                  </span>
-                ))}
+                    Ready to Play
+                  </button>
+                ) : (
+                  <div className="text-yellow-300 font-bold text-xl animate-pulse bg-black/80 px-6 py-3 rounded-xl border-2 border-yellow-500 shadow-xl">
+                    Waiting for others to get ready…
+                  </div>
+                )}
+                {/* Show which players are ready */}
+                <div className="flex flex-wrap gap-3 justify-center max-w-md bg-black/80 p-4 rounded-xl border border-gray-600 shadow-xl">
+                  {room.players.map((p) => (
+                    <span
+                      key={p.name}
+                      className={`px-4 py-2 rounded-full text-sm font-semibold border-2 shadow-lg transition-all ${
+                        p.isReady
+                          ? "bg-green-500 border-green-400 text-white transform scale-105"
+                          : "bg-gray-700 border-gray-500 text-gray-300"
+                      }`}
+                    >
+                      {p.name} {p.isReady ? "✓" : "⏳"}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           )}
