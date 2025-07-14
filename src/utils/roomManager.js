@@ -2,6 +2,7 @@
 const rooms = new Map();
 
 import { BotManager } from "./botManager.js";
+import metrics from "./metrics.js";
 
 export class RoomManager {
   static createRoom(roomId, firstPlayer) {
@@ -29,6 +30,10 @@ export class RoomManager {
     };
 
     rooms.set(roomId, room);
+
+    // Update metrics
+    this.updateMetrics();
+
     return room;
   }
 
@@ -56,6 +61,10 @@ export class RoomManager {
 
     room.players.push(player);
     rooms.set(roomId, room);
+
+    // Update metrics
+    this.updateMetrics();
+
     return true;
   }
 
@@ -95,11 +104,10 @@ export class RoomManager {
       rooms.set(roomId, room);
     }
 
-    return true;
-  }
+    // Update metrics
+    this.updateMetrics();
 
-  static getAllRooms() {
-    return Array.from(rooms.values());
+    return true;
   }
 
   static updateRoom(roomId, updates) {
@@ -236,5 +244,35 @@ export class RoomManager {
     return (
       room && room.players.length === 4 && room.players.every((p) => p.isReady)
     );
+  }
+
+  // Metrics collection methods
+  static updateMetrics() {
+    try {
+      const totalRooms = rooms.size;
+      let totalPlayers = 0;
+      let playersInGame = 0;
+      let playersWaiting = 0;
+
+      rooms.forEach((room) => {
+        totalPlayers += room.players.length;
+        if (room.gameStarted && room.gameState.status === "in-progress") {
+          playersInGame += room.players.length;
+        } else {
+          playersWaiting += room.players.length;
+        }
+      });
+
+      metrics.setActiveRooms(totalRooms);
+      metrics.setActiveUsers(totalPlayers);
+      metrics.setPlayersInGame(playersInGame);
+      metrics.setPlayersWaiting(playersWaiting);
+    } catch (error) {
+      console.error("Error updating metrics:", error);
+    }
+  }
+
+  static getAllRooms() {
+    return rooms;
   }
 }

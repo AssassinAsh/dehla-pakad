@@ -1,6 +1,7 @@
 import { BotEngine } from "./botEngine.js";
 import { RoomManager } from "./roomManager.js";
 import { determineTrickWinner } from "./gameLogic.js";
+import metrics from "./metrics.js";
 
 export class BotManager {
   static botPlayers = new Map(); // Track bot players by room
@@ -305,6 +306,9 @@ export class BotManager {
           return;
         }
 
+        // Track bot action metric
+        metrics.incrementBotActions();
+
         // Final check before playing
         if (room.currentPlayer !== currentPlayer.seat) {
           console.log(
@@ -537,6 +541,9 @@ export class BotManager {
         else room.gameState.draw = false;
         room.gameState.status = "finished";
         console.log("Game finished");
+
+        // Track game completion metric
+        metrics.incrementGamesCompleted();
 
         // Remove all bots from the room after game completion
         const bots = this.getBotsInRoom(roomId);

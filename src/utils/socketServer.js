@@ -3,6 +3,7 @@ import { RoomManager } from "./roomManager.js";
 import { createDeck } from "./gameLogic.js";
 import { BotManager } from "./botManager.js";
 import { MatchmakingQueue } from "./matchmakingQueue.js";
+import metrics from "./metrics.js";
 
 // Debounce map for room updates
 const roomUpdateDebounce = new Map();
@@ -69,13 +70,31 @@ export default function setupSocketIO(server) {
     },
   });
 
+  // Track socket connections
+  let socketConnections = 0;
+
   // Set the debounced room update function in BotManager
   BotManager.setEmitRoomUpdateFunction(emitRoomUpdate);
 
   // Initialize MatchmakingQueue with Socket.IO instance
   MatchmakingQueue.setIO(io);
 
+  // Set up periodic metrics updates every 30 seconds
+  setInterval(() => {
+    try {
+      RoomManager.updateMetrics();
+    } catch (error) {
+      console.error("Error updating periodic metrics:", error);
+    }
+  }, 30000);
+
   io.on("connection", (socket) => {
+    // Increment connection count and update metrics
+    socketConnections++;
+    metrics.setSocketConnections(socketConnections);
+
+    console.log(`User connected: ${socket.id} (Total: ${socketConnections})`);
+
     // Handle room creation
     socket.on("createRoom", (playerName, callback) => {
       try {
@@ -247,6 +266,9 @@ export default function setupSocketIO(server) {
 
         const playedCard = player.hand[cardIndex];
 
+        // Track card play metric
+        metrics.incrementCardPlays();
+
         // Use the shared card play logic from BotManager
         BotManager.processCardPlay(
           room,
@@ -287,6 +309,9 @@ export default function setupSocketIO(server) {
           RoomManager.setDealing(roomId, false);
           RoomManager.updateRoom(roomId, room);
 
+          // Track game started metric
+          metrics.incrementGamesStarted();
+
           // Single emission for game start
           io.to(roomId).emit("gameStarted", room);
           emitRoomUpdate(roomId, io);
@@ -325,6 +350,9 @@ export default function setupSocketIO(server) {
             room.deck = deck;
             RoomManager.setDealing(roomId, false);
             RoomManager.updateRoom(roomId, room);
+
+            // Track game started metric
+            metrics.incrementGamesStarted();
 
             io.to(roomId).emit("gameStarted", room);
             emitRoomUpdate(roomId, io);
@@ -478,6 +506,14 @@ export default function setupSocketIO(server) {
 
     // Handle disconnection
     socket.on("disconnect", () => {
+      // Decrement connection count and update metrics
+      socketConnections--;
+      metrics.setSocketConnections(socketConnections);
+
+      console.log(
+        `User disconnected: ${socket.id} (Total: ${socketConnections})`
+      );
+
       // Clean up from matchmaking queue
       MatchmakingQueue.cleanupDisconnectedPlayer(socket.id);
 
