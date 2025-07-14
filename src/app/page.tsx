@@ -325,7 +325,8 @@ export default function Home() {
                   </button>
                   <button
                     onClick={() => setShowPrivateRoomOptions(true)}
-                    className="border-2 border-green-700 text-green-700 font-bold py-2 px-3 rounded-lg hover:bg-green-50 transition-all duration-200 transform hover:scale-105 text-sm"
+                    disabled={!playerName.trim()}
+                    className="border-2 border-green-700 text-green-700 font-bold py-2 px-3 rounded-lg hover:bg-green-50 disabled:bg-gray-400 disabled:border-gray-400 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 text-sm"
                   >
                     Join Room
                   </button>
