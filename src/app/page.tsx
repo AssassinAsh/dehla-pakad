@@ -240,6 +240,59 @@ export default function Home() {
 
             {/* Game Mode Options */}
             <div className="space-y-4">
+              {/* Play Online */}
+              <div className="border-2 border-purple-200 rounded-lg p-4 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-150 transition-all duration-200 hover:shadow-md">
+                <h3 className="font-bold text-purple-800 mb-2 flex items-center">
+                  <svg
+                    className="w-5 h-5 mr-2 text-purple-600"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                  </svg>
+                  Play Online
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Match with real players online. Bots fill in if needed.
+                </p>
+                <button
+                  onClick={playOnline}
+                  disabled={!playerName.trim()}
+                  className="w-full bg-purple-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow"
+                >
+                  Find Online Match
+                </button>
+              </div>
+
+              {/* Play Computer */}
+              <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-150 transition-all duration-200 hover:shadow-md">
+                <h3 className="font-bold text-blue-800 mb-2 flex items-center">
+                  <svg
+                    className="w-5 h-5 mr-2 text-blue-600"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M20 3H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h3l-1 1v1h8v-1l-1-1h3c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 13H4V5h16v11z" />
+                    <circle cx="12" cy="10.5" r="1.5" />
+                    <circle cx="8" cy="8.5" r="1" />
+                    <circle cx="16" cy="8.5" r="1" />
+                    <circle cx="8" cy="12.5" r="1" />
+                    <circle cx="16" cy="12.5" r="1" />
+                  </svg>
+                  Play Computer
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Play instantly against AI opponents. Perfect for practice!
+                </p>
+                <button
+                  onClick={playWithComputer}
+                  disabled={!playerName.trim()}
+                  className="w-full bg-blue-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow"
+                >
+                  Start Computer Game
+                </button>
+              </div>
+
               {/* Private Room */}
               <div className="border-2 border-green-200 rounded-lg p-4 bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-150 transition-all duration-200 hover:shadow-md">
                 <h3 className="font-bold text-green-800 mb-2 flex items-center">
@@ -324,59 +377,6 @@ export default function Home() {
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* Play Computer */}
-              <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-150 transition-all duration-200 hover:shadow-md">
-                <h3 className="font-bold text-blue-800 mb-2 flex items-center">
-                  <svg
-                    className="w-5 h-5 mr-2 text-blue-600"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M20 3H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h3l-1 1v1h8v-1l-1-1h3c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 13H4V5h16v11z" />
-                    <circle cx="12" cy="10.5" r="1.5" />
-                    <circle cx="8" cy="8.5" r="1" />
-                    <circle cx="16" cy="8.5" r="1" />
-                    <circle cx="8" cy="12.5" r="1" />
-                    <circle cx="16" cy="12.5" r="1" />
-                  </svg>
-                  Play Computer
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Play instantly against AI opponents. Perfect for practice!
-                </p>
-                <button
-                  onClick={playWithComputer}
-                  disabled={!playerName.trim()}
-                  className="w-full bg-blue-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow"
-                >
-                  Start Computer Game
-                </button>
-              </div>
-
-              {/* Play Online */}
-              <div className="border-2 border-purple-200 rounded-lg p-4 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-150 transition-all duration-200 hover:shadow-md">
-                <h3 className="font-bold text-purple-800 mb-2 flex items-center">
-                  <svg
-                    className="w-5 h-5 mr-2 text-purple-600"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-                  </svg>
-                  Play Online
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Match with real players online. Bots fill in if needed.
-                </p>
-                <button
-                  onClick={playOnline}
-                  disabled={!playerName.trim()}
-                  className="w-full bg-purple-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow"
-                >
-                  Find Online Match
-                </button>
               </div>
             </div>
           </div>
