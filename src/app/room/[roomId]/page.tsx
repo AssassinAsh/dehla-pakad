@@ -356,34 +356,31 @@ export default function RoomPage() {
           {/* Ready Button System - Centered in viewport */}
           {!room.gameStarted && room.players.length === 4 && (
             <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
-              <div className="flex flex-col items-center space-y-6 pointer-events-auto">
+              <div className="flex flex-col items-center space-y-4 pointer-events-auto">
                 {!currentPlayer?.isReady ? (
                   <button
                     onClick={handleReady}
-                    className="bg-gradient-to-r from-green-400 to-green-600 text-white font-bold py-4 px-12 rounded-xl hover:from-green-300 hover:to-green-500 transition-all transform hover:scale-105 shadow-2xl text-2xl border-3 border-green-700 animate-pulse"
-                    style={{
-                      boxShadow: "0 10px 40px 0 rgba(34, 197, 94, 0.4)",
-                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-500 hover:border-green-400 active:scale-95"
                   >
-                    Ready to Play
+                    🎮 Ready to Play
                   </button>
                 ) : (
-                  <div className="text-yellow-300 font-bold text-xl animate-pulse bg-black/80 px-6 py-3 rounded-xl border-2 border-yellow-500 shadow-xl">
-                    Waiting for others to get ready…
+                  <div className="text-yellow-400 font-semibold text-lg bg-yellow-900/30 px-6 py-3 rounded-lg border border-yellow-500/50 shadow-md">
+                    ⏳ Waiting for others to get ready…
                   </div>
                 )}
                 {/* Show which players are ready */}
-                <div className="flex flex-wrap gap-3 justify-center max-w-md bg-black/80 p-4 rounded-xl border border-gray-600 shadow-xl">
+                <div className="flex flex-wrap gap-2 justify-center max-w-md bg-gray-900/50 p-4 rounded-lg border border-gray-700 shadow-md">
                   {room.players.map((p) => (
                     <span
                       key={p.name}
-                      className={`px-4 py-2 rounded-full text-sm font-semibold border-2 shadow-lg transition-all ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
                         p.isReady
-                          ? "bg-green-500 border-green-400 text-white transform scale-105"
-                          : "bg-gray-700 border-gray-500 text-gray-300"
+                          ? "bg-green-600 border-green-500 text-white"
+                          : "bg-gray-700 border-gray-600 text-gray-300"
                       }`}
                     >
-                      {p.name} {p.isReady ? "✓" : "⏳"}
+                      {p.name} {p.isReady ? "✅" : "⏳"}
                     </span>
                   ))}
                 </div>

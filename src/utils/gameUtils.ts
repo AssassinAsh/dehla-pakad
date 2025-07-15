@@ -49,6 +49,40 @@ export function countTens(cards: Card[]): number {
   return cards.filter((c) => c.rank === "10").length;
 }
 
+// Get the dealing order starting from the player clockwise to the dealer
+export function getDealingOrder(dealerSeat: number): number[] {
+  const order = [];
+  for (let i = 1; i <= 4; i++) {
+    const seat = (dealerSeat % 4) + i; // Start from next seat clockwise
+    const adjustedSeat = seat > 4 ? seat - 4 : seat;
+    order.push(adjustedSeat);
+  }
+  return order;
+}
+
+// Get the next seat clockwise
+export function getNextSeatClockwise(currentSeat: number): number {
+  return (currentSeat % 4) + 1;
+}
+
+// Get the next dealer (clockwise rotation)
+export function getNextDealer(
+  currentDealer: number,
+  occupiedSeats: number[]
+): number {
+  const sortedSeats = [...occupiedSeats].sort((a, b) => a - b);
+  const currentIndex = sortedSeats.indexOf(currentDealer);
+
+  if (currentIndex === -1) {
+    // Current dealer not found, return first occupied seat
+    return sortedSeats[0];
+  }
+
+  // Return next seat in clockwise order
+  const nextIndex = (currentIndex + 1) % sortedSeats.length;
+  return sortedSeats[nextIndex];
+}
+
 // Deal 13 cards to each of 4 players
 export function dealCards(deck: Card[]): Card[][] {
   const shuffled = shuffleDeck(deck);

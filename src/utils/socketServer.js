@@ -28,14 +28,32 @@ function emitRoomUpdate(roomId, io, delay = 50) {
 }
 
 // Optimized dealing function to reduce emissions
-function dealCardsOptimized(room, roomId, io, deck) {
+// Deals cards starting from the player clockwise to the dealer
+function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
   return new Promise((resolve) => {
     let dealIndex = 0;
+
+    // Get dealing order starting from the player clockwise to the dealer
+    const getDealingOrder = (dealer) => {
+      const order = [];
+      for (let i = 1; i <= 4; i++) {
+        const seat = (dealer % 4) + i; // Start from next seat clockwise
+        const adjustedSeat = seat > 4 ? seat - 4 : seat;
+        order.push(adjustedSeat);
+      }
+      return order;
+    };
+
+    const dealingOrder = getDealingOrder(dealerSeat);
+
     const dealCards = () => {
       if (dealIndex < 5) {
-        // Deal 4 cards at once (one per player)
-        room.players.forEach((player) => {
-          player.hand.push(deck.shift());
+        // Deal cards in proper order (clockwise from dealer)
+        dealingOrder.forEach((seat) => {
+          const player = room.players.find((p) => p.seat === seat);
+          if (player && deck.length > 0) {
+            player.hand.push(deck.shift());
+          }
         });
 
         // Update bot hands
@@ -51,6 +69,8 @@ function dealCardsOptimized(room, roomId, io, deck) {
 
         setTimeout(dealCards, dealIndex === 5 ? 0 : 200); // Faster dealing
       } else {
+        // Set the first player to play (the one who got the first card)
+        room.firstPlayerThisRound = dealingOrder[0];
         resolve();
       }
     };
@@ -298,19 +318,28 @@ export default function setupSocketIO(server) {
 
         // Only need 4 players who have all joined
         if (room && room.players.length === 4 && !room.gameStarted) {
-          // Set dealer and dealing state
-          RoomManager.setDealer(roomId, room.currentPlayer || 1);
+          // Set or rotate dealer (clockwise for new rounds)
+          if (!room.dealerSeat) {
+            // First game: assign dealer to seat 1
+            RoomManager.setDealer(roomId, 1);
+          } else {
+            // Subsequent games: rotate dealer clockwise
+            RoomManager.rotateDealer(roomId);
+          }
+
+          const dealerSeat = room.dealerSeat;
           RoomManager.setDealing(roomId, true);
 
           const deck = createDeck();
 
-          // Use optimized dealing
-          await dealCardsOptimized(room, roomId, io, deck);
+          // Use optimized dealing with proper dealer logic
+          await dealCardsOptimized(room, roomId, io, deck, dealerSeat);
 
           // Finish dealing
           room.gameStarted = true;
           room.gameState.status = "in-progress";
-          room.currentPlayer = room.players[0].seat; // Start with seat 1
+          // Set current player to the one who got the first card (clockwise from dealer)
+          room.currentPlayer = room.firstPlayerThisRound;
           room.deck = deck; // Store remaining deck
           RoomManager.setDealing(roomId, false);
           RoomManager.updateRoom(roomId, room);
@@ -322,8 +351,10 @@ export default function setupSocketIO(server) {
           io.to(roomId).emit("gameStarted", room);
           emitRoomUpdate(roomId, io);
 
-          // Use unified turn handler for first player
-          BotManager.handleTurn(roomId, room, io);
+          // Use unified turn handler for first player with a small delay
+          setTimeout(() => {
+            BotManager.handleTurn(roomId, RoomManager.getRoom(roomId), io);
+          }, 1000);
         } else {
           socket.emit("error", "Cannot start game.");
         }
@@ -343,16 +374,26 @@ export default function setupSocketIO(server) {
         if (RoomManager.areAllPlayersReady(roomId)) {
           // All ready, start the game automatically
           if (room && room.players.length === 4 && !room.gameStarted) {
-            RoomManager.setDealer(roomId, room.currentPlayer || 1);
+            // Set or rotate dealer (clockwise for new rounds)
+            if (!room.dealerSeat) {
+              // First game: assign dealer to seat 1
+              RoomManager.setDealer(roomId, 1);
+            } else {
+              // Subsequent games: rotate dealer clockwise
+              RoomManager.rotateDealer(roomId);
+            }
+
+            const dealerSeat = room.dealerSeat;
             RoomManager.setDealing(roomId, true);
             const deck = createDeck();
 
-            // Use optimized dealing
-            await dealCardsOptimized(room, roomId, io, deck);
+            // Use optimized dealing with proper dealer logic
+            await dealCardsOptimized(room, roomId, io, deck, dealerSeat);
 
             room.gameStarted = true;
             room.gameState.status = "in-progress";
-            room.currentPlayer = room.players[0].seat;
+            // Set current player to the one who got the first card (clockwise from dealer)
+            room.currentPlayer = room.firstPlayerThisRound;
             room.deck = deck;
             RoomManager.setDealing(roomId, false);
             RoomManager.updateRoom(roomId, room);
@@ -362,6 +403,11 @@ export default function setupSocketIO(server) {
 
             io.to(roomId).emit("gameStarted", room);
             emitRoomUpdate(roomId, io);
+
+            // Use unified turn handler for first player with a small delay
+            setTimeout(() => {
+              BotManager.handleTurn(roomId, RoomManager.getRoom(roomId), io);
+            }, 1000);
           }
         }
       }
