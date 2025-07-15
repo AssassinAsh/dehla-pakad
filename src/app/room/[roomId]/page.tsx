@@ -8,6 +8,7 @@ import GameTable from "@/components/GameTable";
 import RulesModal from "@/components/RulesModal";
 import PlayerHand from "@/components/PlayerHand";
 import Toast from "@/components/Toast"; // Import the new Toast component
+import ReplayModal from "@/components/ReplayModal";
 
 import "@/styles/animations.css";
 import {
@@ -18,8 +19,6 @@ import {
   PointerSensor,
   TouchSensor,
 } from "@dnd-kit/core";
-import Confetti from "react-confetti";
-import { useWindowSize } from "react-use";
 
 // Patch GameState type for kot/draw
 // (Remove this if you add kot/draw to the main type)
@@ -183,7 +182,7 @@ export default function RoomPage() {
     room.gameState.status === "in-progress" &&
     room.currentPlayer === currentPlayer.seat;
 
-  const [showEndgameModal, setShowEndgameModal] = useState(false);
+  const [showReplayModal, setShowReplayModal] = useState(false);
   const [endgameResult, setEndgameResult] = useState<null | {
     result: "win" | "lose" | "draw";
     isKot: boolean;
@@ -193,7 +192,6 @@ export default function RoomPage() {
     t1Tricks: number;
     t2Tricks: number;
   }>(null);
-  const { width, height } = useWindowSize();
 
   // Watch for game end
   useEffect(() => {
@@ -228,17 +226,13 @@ export default function RoomPage() {
         t1Tricks,
         t2Tricks,
       });
-      setShowEndgameModal(true);
+      setShowReplayModal(true);
     }
   }, [room, currentPlayer]);
 
   const handleReplay = () => {
-    // Notify backend that this player wants to replay
-    if (socketRef.current && room) {
-      socketRef.current.emit("playerReplay", room.id);
-    }
-    // Close the endgame modal and return to the table
-    setShowEndgameModal(false);
+    // Close the replay modal and return to the table
+    setShowReplayModal(false);
     setEndgameResult(null);
   };
   const handleLeave = () => {
@@ -315,79 +309,38 @@ export default function RoomPage() {
   return (
     <DndContext onDragEnd={handleDragEnd} autoScroll={false} sensors={sensors}>
       <div className="min-h-screen p-2 md:p-4 bg-gradient-to-br from-green-800 via-gray-900 to-black text-white pb-32 md:pb-40">
-        {/* Endgame Modal */}
-        {showEndgameModal && endgameResult && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
-            {/* Confetti for win or Kot */}
-            {(endgameResult.result === "win" ||
-              (endgameResult.isKot && endgameResult.result !== "draw")) && (
-              <Confetti
-                width={width}
-                height={height}
-                numberOfPieces={endgameResult.isKot ? 800 : 400}
-                recycle={false}
-                gravity={0.3}
-              />
-            )}
-            {/* Dramatic effect for Kot lose */}
-            {endgameResult.isKot && endgameResult.result === "lose" && (
-              <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-black to-purple-900 opacity-80 animate-pulse pointer-events-none" />
-            )}
-            <div className="relative bg-white text-gray-900 rounded-2xl shadow-2xl border-4 border-yellow-400 max-w-md w-full p-8 flex flex-col items-center animate-fade-in-up">
-              <h2
-                className={`text-3xl font-extrabold mb-2 ${
-                  endgameResult.result === "win"
-                    ? "text-green-700"
-                    : endgameResult.result === "lose"
-                    ? "text-red-700"
-                    : "text-yellow-600"
-                }`}
-              >
-                {endgameResult.isKot
-                  ? endgameResult.result === "win"
-                    ? "KOT!"
-                    : "KOT!"
-                  : endgameResult.result === "win"
-                  ? "You Win!"
-                  : endgameResult.result === "lose"
-                  ? "You Lose"
-                  : "Match Draw"}
-              </h2>
-              {endgameResult.isKot && (
-                <p className="text-lg font-bold text-purple-700 mb-2">
-                  All four 10s captured!
-                </p>
-              )}
-              <div className="flex flex-col gap-2 w-full mt-2 mb-4">
-                <div className="flex justify-between w-full">
-                  <span className="font-bold text-blue-700">Team 1 (1&3)</span>
-                  <span className="font-mono">
-                    {endgameResult.t1Tens} tens, {endgameResult.t1Tricks} tricks
-                  </span>
-                </div>
-                <div className="flex justify-between w-full">
-                  <span className="font-bold text-green-700">Team 2 (2&4)</span>
-                  <span className="font-mono">
-                    {endgameResult.t2Tens} tens, {endgameResult.t2Tricks} tricks
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-4 mt-4">
-                <button
-                  onClick={handleReplay}
-                  className="bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-6 py-2 rounded-lg shadow border-2 border-yellow-600 transition-transform transform hover:scale-105"
-                >
-                  Replay
-                </button>
-                <button
-                  onClick={handleLeave}
-                  className="bg-gray-800 hover:bg-gray-700 text-white font-bold px-6 py-2 rounded-lg shadow border-2 border-gray-900 transition-transform transform hover:scale-105"
-                >
-                  Leave
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Enhanced Replay Modal */}
+        {showReplayModal && endgameResult && room && currentPlayer && (
+          <ReplayModal
+            isOpen={showReplayModal}
+            gameMode={room.gameMode || "private"}
+            gameResult={{
+              result: endgameResult.result,
+              isKot: endgameResult.isKot,
+              isDraw: endgameResult.isDraw,
+              t1Tens: endgameResult.t1Tens,
+              t2Tens: endgameResult.t2Tens,
+              t1Tricks: endgameResult.t1Tricks,
+              t2Tricks: endgameResult.t2Tricks,
+            }}
+            replayState={
+              room.replayState
+                ? {
+                    votesNeeded: room.replayState.votesNeeded,
+                    currentVotes: room.replayState.votes.size,
+                    isWaitingForVotes: room.replayState.isReplayInProgress,
+                    isHost: room.host === currentPlayer.name,
+                  }
+                : undefined
+            }
+            onClose={handleReplay}
+            onReplay={() => {
+              if (socketRef.current && room) {
+                socketRef.current.emit("playerReplay", room.id);
+              }
+            }}
+            onLeave={handleLeave}
+          />
         )}
         {/* Modern Header */}
         <header className="sticky top-0 z-30 flex items-center justify-between gap-2 px-4 md:px-8 py-2 md:py-4 bg-gradient-to-b from-black/70 to-transparent rounded-b-2xl shadow-lg mb-2 md:mb-4">

@@ -58,6 +58,9 @@ export class MatchmakingQueue {
     const roomId = this.generateRoomId();
     const room = RoomManager.createRoom(roomId, player);
 
+    // Set game mode for lobby
+    RoomManager.setGameMode(roomId, "lobby");
+
     // Assign random seat to player
     player.seat = this.getRandomAvailableSeat(room);
     room.players[0].seat = player.seat;
@@ -242,6 +245,9 @@ export class MatchmakingQueue {
 
     // Create room
     const room = RoomManager.createRoom(roomId, player);
+
+    // Set game mode for quick-bots
+    RoomManager.setGameMode(roomId, "quick-bots");
 
     // Add bots to remaining seats
     BotManager.addBotsToRoom(roomId, room, "medium");

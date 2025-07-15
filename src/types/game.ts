@@ -47,6 +47,13 @@ export interface Room {
   createdAt: Date;
   dealerSeat?: number;
   deck?: Card[];
+  gameMode?: "private" | "lobby" | "quick-bots"; // Track game mode for replay UX
+  replayState?: {
+    votesNeeded: number;
+    votes: Set<string>;
+    timer?: NodeJS.Timeout;
+    isReplayInProgress: boolean;
+  };
 }
 
 export interface Trick {

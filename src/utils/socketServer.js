@@ -112,6 +112,10 @@ export default function setupSocketIO(server) {
         };
 
         const room = RoomManager.createRoom(roomId, player);
+
+        // Set as private room mode
+        RoomManager.setGameMode(roomId, "private");
+
         socket.join(roomId);
 
         // Ensure callback is a function before calling it
@@ -423,74 +427,27 @@ export default function setupSocketIO(server) {
       socket.emit("roomsList", roomsList);
     });
 
-    // Handle player replay requests
+    // Handle player replay requests - Enhanced version
     socket.on("playerReplay", (roomId) => {
       try {
         const room = RoomManager.getRoom(roomId);
         if (!room) return;
+
         // Find player by socket.id
         const player = room.players.find((p) => p.id === socket.id);
         if (!player) return;
-        RoomManager.addReplayVote(roomId, player.name);
-        const replayVotes = RoomManager.getReplayVotes(roomId);
 
-        // Count only human players for replay votes (bots don't vote)
-        const humanPlayers = room.players.filter((p) => !BotManager.isBot(p));
-        const requiredVotes = humanPlayers.length;
+        // Use enhanced replay system
+        const result = RoomManager.handleReplayRequest(roomId, player.name, io);
 
-        // If all human players have voted, reset the game
-        if (replayVotes.size === requiredVotes) {
-          // Remove all bots from the room before resetting
-          const bots = BotManager.getBotsInRoom(roomId);
-          bots.forEach((bot) => {
-            // Remove bot from room.players
-            const botIndex = room.players.findIndex((p) => p.id === bot.id);
-            if (botIndex !== -1) {
-              room.players.splice(botIndex, 1);
-            }
-          });
-
-          // Clean up bot tracking
-          BotManager.removeBotsFromRoom(roomId);
-
-          // Reset game state
-          RoomManager.clearReplayVotes(roomId);
-          RoomManager.resetAllReady(roomId); // <-- Reset ready flags
-
-          // Rotate dealer to next player clockwise
-          RoomManager.rotateDealer(roomId);
-
-          room.gameStarted = false;
-          room.gameState = {
-            status: "waiting",
-            trump: null,
-            trumpJustSet: false,
-            totalTricksCompleted: 0,
-            scores: {
-              team1: { tricks: 0, tens: 0 },
-              team2: { tricks: 0, tens: 0 },
-            },
-            lastTrickWinnerSeat: null,
-          };
-          room.deck = [];
-          room.currentTrick = [];
-          room.stackedTricks = [];
-          room.tricks = [];
-          // Optionally rotate dealer/first player
-          room.currentPlayer =
-            room.players.length > 0 ? room.players[0].seat : null;
-          RoomManager.updateRoom(roomId, room);
-          emitRoomUpdate(roomId, io);
-          // Now players must click Ready again to start
-        } else {
-          // Notify clients how many are ready
-          io.to(roomId).emit("replayVote", {
-            count: replayVotes.size,
-            required: requiredVotes,
-          });
-        }
+        // Send feedback to the requesting player
+        socket.emit("replayResponse", result);
       } catch (error) {
         console.error("Error handling playerReplay:", error);
+        socket.emit("replayResponse", {
+          success: false,
+          message: "Error processing replay request",
+        });
       }
     });
 
