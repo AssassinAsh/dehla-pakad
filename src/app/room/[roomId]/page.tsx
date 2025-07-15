@@ -9,6 +9,7 @@ import RulesModal from "@/components/RulesModal";
 import PlayerHand from "@/components/PlayerHand";
 import Toast from "@/components/Toast"; // Import the new Toast component
 import ReplayModal from "@/components/ReplayModal";
+import SmartHeader from "@/components/SmartHeader";
 
 import "@/styles/animations.css";
 import {
@@ -51,13 +52,6 @@ export default function RoomPage() {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
   const [error, setError] = useState<string | null>(null); // State for error toast
-
-  // Copy invite link to clipboard
-  const [copied, setCopied] = useState(false);
-  const inviteUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/room/${roomId}`
-      : "";
 
   // Initialize Socket.IO client
   useEffect(() => {
@@ -342,119 +336,12 @@ export default function RoomPage() {
             onLeave={handleLeave}
           />
         )}
-        {/* Modern Header */}
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 px-4 md:px-8 py-2 md:py-4 bg-gradient-to-b from-black/70 to-transparent rounded-b-2xl shadow-lg mb-2 md:mb-4">
-          {/* Room ID Pill */}
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-yellow-400 text-gray-900 font-bold text-base shadow-md border-2 border-yellow-600 select-all">
-              <span className="tracking-widest">{room.id}</span>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(room.id);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-                className="ml-2 p-1 rounded-full bg-yellow-500 hover:bg-yellow-300 transition-colors"
-                aria-label="Copy Room ID"
-              >
-                {copied ? (
-                  <svg
-                    className="w-4 h-4 text-green-700"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-4 h-4 text-gray-900"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    viewBox="0 0 24 24"
-                  >
-                    <rect x="9" y="9" width="13" height="13" rx="2" />
-                    <path d="M5 15V5a2 2 0 012-2h10" />
-                  </svg>
-                )}
-              </button>
-            </span>
-          </div>
-
-          {/* Share Button (Web Share API on mobile, fallback to copy) */}
-          <button
-            onClick={async () => {
-              if (navigator.share) {
-                await navigator.share({
-                  title: "Join my Dehla Pakad room!",
-                  text: `Join my Dehla Pakad room: ${room.id}`,
-                  url: inviteUrl,
-                });
-              } else {
-                navigator.clipboard.writeText(inviteUrl);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold shadow-md border-2 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 transition-colors text-base min-w-[120px] justify-center"
-            aria-label="Share Room Link"
-          >
-            <svg
-              className="w-5 h-5 mr-1"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16 6l-4-4-4 4m4-4v16"
-              />
-            </svg>
-            <span>Share Room</span>
-            {copied && (
-              <span className="ml-2 text-green-700 font-semibold animate-fade-in">
-                Copied!
-              </span>
-            )}
-          </button>
-
-          {/* Show Rules FAB (mobile) or Icon Button (desktop) */}
-          <button
-            onClick={() => setIsRulesModalOpen(true)}
-            className="flex items-center justify-center w-20 h-14 md:w-auto md:h-auto rounded-full bg-gradient-to-br from-yellow-400 to-yellow-300 text-gray-900 font-bold shadow-2xl border-4 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 hover:text-gray-900 transition-all px-4 py-2 text-lg gap-2"
-            aria-label="Show Rules"
-            style={{ boxShadow: "0 6px 32px 0 rgba(251, 191, 36, 0.25)" }}
-          >
-            <svg
-              className="w-7 h-7 md:w-6 md:h-6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="ml-1">Rules</span>
-          </button>
-        </header>
+        {/* Smart Header */}
+        <SmartHeader
+          room={room}
+          isGameInProgress={room.gameState.status === "in-progress"}
+          onShowRules={() => setIsRulesModalOpen(true)}
+        />
         <main className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           {/* Table */}
           <GameTable
