@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
 import RulesModal from "@/components/RulesModal";
@@ -28,6 +28,28 @@ export default function Home() {
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Auto-open matchmaking modal if coming from lobby replay
+  useEffect(() => {
+    const autoJoinLobby = searchParams.get("joinLobby");
+    const nameFromUrl = searchParams.get("name");
+
+    if (autoJoinLobby === "true") {
+      // Set player name if provided in URL
+      if (nameFromUrl) {
+        setPlayerName(decodeURIComponent(nameFromUrl));
+      }
+      // Auto-open matchmaking modal
+      setIsMatchmakingModalOpen(true);
+
+      // Clean up URL params
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("joinLobby");
+      newUrl.searchParams.delete("name");
+      window.history.replaceState({}, "", newUrl.toString());
+    }
+  }, [searchParams]);
 
   const createRoom = async () => {
     if (!playerName.trim()) {

@@ -66,22 +66,65 @@ export const RedisKeys = {
 };
 
 // Redis operations with fallback
-export class RedisOperations {
+// Error tracking for circuit breaker
+const errorTracking = {
+  consecutiveErrors: 0,
+  lastErrorTime: 0,
+  isCircuitOpen: false,
+  lastLogTime: 0,
+  LOG_THROTTLE_MS: 5000, // Only log Redis errors every 5 seconds
+  CIRCUIT_BREAKER_THRESHOLD: 5, // Open circuit after 5 consecutive errors
+  CIRCUIT_BREAKER_TIMEOUT: 30000, // Keep circuit open for 30 seconds
+};
+
+class RedisOperations {
   static async get(key) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return null;
+    }
+
     if (!client) return null;
 
     try {
-      return await client.get(key);
+      const value = await client.get(key);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
+      return value;
     } catch (error) {
-      console.error(`Redis GET error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return null;
     }
   }
 
   static async set(key, value, options = {}) {
     const client = getRedisClient();
-    if (!client) return false;
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      const now = Date.now();
+      if (
+        now - errorTracking.lastErrorTime <
+        errorTracking.CIRCUIT_BREAKER_TIMEOUT
+      ) {
+        // Circuit still open, don't attempt Redis operation
+        return false;
+      } else {
+        // Reset circuit breaker after timeout
+        errorTracking.isCircuitOpen = false;
+        errorTracking.consecutiveErrors = 0;
+      }
+    }
+
+    if (!client) {
+      this.handleRedisError(key, new Error("Redis client not available"));
+      return false;
+    }
 
     try {
       // Serialize objects to JSON
@@ -93,35 +136,91 @@ export class RedisOperations {
       } else {
         await client.set(key, serializedValue);
       }
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
       return true;
     } catch (error) {
-      console.error(`Redis SET error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return false;
+    }
+  }
+
+  static handleRedisError(key, error) {
+    const now = Date.now();
+    errorTracking.consecutiveErrors++;
+    errorTracking.lastErrorTime = now;
+
+    // Open circuit breaker if too many consecutive errors
+    if (
+      errorTracking.consecutiveErrors >= errorTracking.CIRCUIT_BREAKER_THRESHOLD
+    ) {
+      errorTracking.isCircuitOpen = true;
+    }
+
+    // Throttle error logging to prevent spam
+    if (now - errorTracking.lastLogTime > errorTracking.LOG_THROTTLE_MS) {
+      console.error(
+        `Redis SET error for key ${key} (${errorTracking.consecutiveErrors} consecutive errors):`,
+        error.message
+      );
+      if (errorTracking.isCircuitOpen) {
+        console.warn(
+          `Redis circuit breaker OPEN - operations will be skipped for ${
+            errorTracking.CIRCUIT_BREAKER_TIMEOUT / 1000
+          }s`
+        );
+      }
+      errorTracking.lastLogTime = now;
     }
   }
 
   static async del(key) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return false;
+    }
+
     if (!client) return false;
 
     try {
       await client.del(key);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
       return true;
     } catch (error) {
-      console.error(`Redis DEL error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return false;
     }
   }
 
   static async exists(key) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return false;
+    }
+
     if (!client) return false;
 
     try {
       const result = await client.exists(key);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
       return result === 1;
     } catch (error) {
-      console.error(`Redis EXISTS error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return false;
     }
   }
@@ -206,3 +305,5 @@ export class RedisOperations {
 
 // Initialize Redis on module load
 initializeRedis();
+
+export { RedisOperations };

@@ -178,11 +178,28 @@ export default function RoomPage() {
 
         socket.on(
           "replayResponse",
-          (response: { success: boolean; message: string }) => {
+          (response: {
+            success: boolean;
+            message: string;
+            mode?: string;
+            matchmaking?: boolean;
+          }) => {
             if (response.success) {
-              // For successful replay, close the modal and return to game table
-              setShowReplayModal(false);
-              setEndgameResult(null);
+              // Check if this is a lobby matchmaking response
+              if (response.mode === "lobby" && response.matchmaking) {
+                // For lobby replay, redirect to home with params to auto-open matchmaking
+                setShowReplayModal(false);
+                setEndgameResult(null);
+                const player = currentPlayer;
+                const playerNameParam = player?.name
+                  ? `&name=${encodeURIComponent(player.name)}`
+                  : "";
+                window.location.href = `/?joinLobby=true${playerNameParam}`;
+              } else {
+                // For other modes (quick-bots, private), close modal and return to game table
+                setShowReplayModal(false);
+                setEndgameResult(null);
+              }
             } else {
               // Only show error messages
               if (response.message && response.message.trim()) {
@@ -219,7 +236,7 @@ export default function RoomPage() {
         socketRef.current.removeAllListeners("hostLeft");
       }
     };
-  }, [roomId, playerName]);
+  }, [roomId, playerName, currentPlayer]);
 
   const joinSeat = (seatNumber: number) => {
     if (!playerName || !room || !socketRef.current) return;
@@ -496,7 +513,7 @@ export default function RoomPage() {
                   <div className="flex flex-wrap gap-2 justify-center max-w-md bg-gray-900/50 p-4 rounded-lg border border-gray-700 shadow-md">
                     {room.players.map((p) => (
                       <span
-                        key={p.name}
+                        key={`${p.name}-${p.seat}`}
                         className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
                           p.isReady
                             ? "bg-green-600 border-green-500 text-white"

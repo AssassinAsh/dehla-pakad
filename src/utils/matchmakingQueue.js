@@ -71,45 +71,71 @@ export class MatchmakingQueue {
     // Assign seat to player before creating room
     player.seat = 1; // First player in new lobby gets seat 1
 
-    const room = await RoomManager.createRoom(roomId, player);
+    try {
+      const room = await RoomManager.createRoom(roomId, player);
 
-    // Set game mode for lobby
-    RoomManager.setGameMode(roomId, "lobby");
+      // Set game mode for lobby
+      await RoomManager.setGameMode(roomId, "lobby");
 
-    const roomData = {
-      room,
-      createdAt: Date.now(),
-      playerCount: 1,
-      timer: null,
-    };
+      const roomData = {
+        room,
+        createdAt: Date.now(),
+        playerCount: 1,
+        timer: null,
+      };
 
-    this.waitingRooms.set(roomId, roomData);
+      this.waitingRooms.set(roomId, roomData);
 
-    // Set timer to fill with bots after 15 seconds
-    roomData.timer = setTimeout(() => {
-      this.fillRoomWithBots(roomId);
-    }, 15000); // 15 seconds as requested
+      // Set timer to fill with bots after 15 seconds
+      roomData.timer = setTimeout(() => {
+        this.fillRoomWithBots(roomId);
+      }, 15000); // 15 seconds as requested
 
-    // Notify player they joined a new lobby
-    if (this.io) {
-      this.io.to(player.socketId).emit("lobbyJoined", {
+      // Notify player they joined a new lobby
+      if (this.io) {
+        this.io.to(player.socketId).emit("lobbyJoined", {
+          roomId,
+          message: `Lobby created! Waiting for more players...`,
+          playersCount: 1,
+          maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+          timeRemaining: 15,
+        });
+      }
+
+      return {
+        status: "queued",
         roomId,
-        message: `Lobby created! Waiting for more players...`,
-        playersCount: 1,
-        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
-        timeRemaining: 15,
-      });
-    }
+        lobbyInfo: {
+          playersCount: 1,
+          maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+          timeRemaining: 15,
+        },
+      };
+    } catch (error) {
+      console.error("Failed to create room for lobby:", error);
 
-    return {
-      status: "queued",
-      roomId,
-      lobbyInfo: {
-        playersCount: 1,
-        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
-        timeRemaining: 15,
-      },
-    };
+      // Fallback: try to add to existing room even if full, or return error
+      for (const [roomId, roomData] of this.waitingRooms.entries()) {
+        const room = roomData.room;
+        if (room && room.players) {
+          // Try to add even to "full" rooms as a last resort
+          const success = await this.addPlayerToWaitingRoom(roomId, player);
+          if (success) {
+            return {
+              status: "queued",
+              roomId,
+              lobbyInfo: {
+                playersCount: room.players.length,
+                maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+                timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
+              },
+            };
+          }
+        }
+      }
+
+      throw error; // Re-throw if all fallbacks fail
+    }
   }
 
   /**
@@ -359,34 +385,49 @@ export class MatchmakingQueue {
     // Assign random available seat
     player.seat = this.getRandomAvailableSeat(room);
 
-    // Add to room and wait for completion
-    const success = await RoomManager.addPlayerToRoom(roomId, player);
-    if (!success) {
-      console.warn(`Failed to add player ${player.name} to room ${roomId}`);
+    // Add to room and wait for completion with error handling
+    try {
+      const success = await RoomManager.addPlayerToRoom(roomId, player);
+      if (!success) {
+        console.warn(`Failed to add player ${player.name} to room ${roomId}`);
+        return false;
+      }
+
+      // Get updated room data to ensure we have the latest player count
+      const updatedRoom = await RoomManager.getRoom(roomId);
+      if (updatedRoom) {
+        roomData.room = updatedRoom;
+      }
+
+      // Remove from queue
+      this.queue.delete(player.socketId);
+      const timeout = this.playerTimers.get(player.socketId);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.playerTimers.delete(player.socketId);
+      }
+
+      // Update room data with correct player count
+      roomData.playerCount = updatedRoom
+        ? updatedRoom.players.length
+        : room.players.length;
+      const currentPlayerCount = updatedRoom
+        ? updatedRoom.players.length
+        : room.players.length;
+
+      console.log(
+        `Player ${player.name} joined room ${roomId} (${currentPlayerCount}/${this.MAX_PLAYERS_PER_ROOM})`
+      );
+
+      return true;
+    } catch (error) {
+      console.error(
+        `Error adding player ${player.name} to room ${roomId}:`,
+        error
+      );
+      // Don't remove from queue if there was an error
       return false;
     }
-
-    // Get updated room data to ensure we have the latest player count
-    const updatedRoom = await RoomManager.getRoom(roomId);
-    if (updatedRoom) {
-      roomData.room = updatedRoom;
-    }
-
-    // Remove from queue
-    this.queue.delete(player.socketId);
-    const timeout = this.playerTimers.get(player.socketId);
-    if (timeout) {
-      clearTimeout(timeout);
-      this.playerTimers.delete(player.socketId);
-    }
-
-    // Update room data with correct player count
-    roomData.playerCount = updatedRoom
-      ? updatedRoom.players.length
-      : room.players.length;
-    const currentPlayerCount = updatedRoom
-      ? updatedRoom.players.length
-      : room.players.length;
 
     // Notify player they joined the lobby
     if (this.io) {
@@ -433,10 +474,6 @@ export class MatchmakingQueue {
       console.warn(`Room ${roomId} has no players array`);
       return;
     }
-
-    console.log(
-      `Filling room ${roomId} with bots. Current players: ${room.players.length}`
-    );
 
     // Add bots to empty seats
     BotManager.addBotsToRoom(roomId, room, "medium");

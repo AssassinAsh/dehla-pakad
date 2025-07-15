@@ -529,42 +529,70 @@ export class RoomManager {
     return { success: false, message: "Failed to restart game" };
   }
 
-  static handleLobbyReplay(roomId, playerName, io) {
-    const room = rooms.get(roomId);
+  static async handleLobbyReplay(roomId, playerName, io) {
+    const room = await this.getRoom(roomId);
     if (!room) return { success: false, message: "Room not found" };
 
-    // Add vote for replay
-    room.replayState.votes.add(playerName);
-
-    const currentVotes = room.replayState.votes.size;
-    const votesNeeded = room.replayState.votesNeeded;
-
-    // Notify all players of vote status
-    io.to(roomId).emit("replayVoteUpdate", {
-      currentVotes,
-      votesNeeded,
-      voter: playerName,
-    });
-
-    if (currentVotes >= votesNeeded) {
-      // Enough votes, redirect to new lobby
-      io.to(roomId).emit("replayApproved", {
-        message: "Players voted for replay! Joining new lobby...",
-        mode: "lobby",
-      });
-
-      // Clear the room after a short delay
-      setTimeout(() => {
-        RoomManager.removeRoom(roomId);
-      }, 3000);
-
-      return { success: true, message: "Replay approved - joining new lobby" };
+    // Find the player who wants to replay
+    const player = room.players.find((p) => p.name === playerName);
+    if (!player) {
+      return { success: false, message: "Player not found in room" };
     }
 
-    return {
-      success: true,
-      message: `Vote recorded (${currentVotes}/${votesNeeded})`,
+    // Immediately add player to matchmaking queue for lobby games
+    const { MatchmakingQueue } = await import("./matchmakingQueue.js");
+
+    // Prepare player data for matchmaking
+    const playerForQueue = {
+      id: player.id,
+      socketId: player.socketId || player.id,
+      name: player.name,
+      hand: [],
+      isReady: false,
+      isConnected: true,
     };
+
+    try {
+      // Add player to lobby matchmaking queue with error handling
+      const queueResult = await MatchmakingQueue.addPlayerToQueue(
+        playerForQueue,
+        {
+          mode: "lobby",
+        }
+      );
+
+      // Notify player about joining matchmaking regardless of Redis status
+      io.to(player.socketId || player.id).emit("replayResponse", {
+        success: true,
+        message: "Finding new match...",
+        mode: "lobby",
+        matchmaking: true,
+      });
+
+      return {
+        success: true,
+        message: "Player added to matchmaking queue",
+        matchmaking: true,
+        queueResult,
+      };
+    } catch (error) {
+      console.error("Error adding player to matchmaking queue:", error);
+
+      // Still try to redirect player even if there was an error
+      // The matchmaking system has fallbacks and in-memory storage
+      io.to(player.socketId || player.id).emit("replayResponse", {
+        success: true,
+        message: "Redirecting to lobby...",
+        mode: "lobby",
+        matchmaking: true,
+      });
+
+      return {
+        success: true,
+        message: "Redirecting to lobby (fallback mode)",
+        error: error.message,
+      };
+    }
   }
 
   static handleDefaultReplay(roomId, playerName, io) {

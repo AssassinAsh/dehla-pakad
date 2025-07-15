@@ -382,11 +382,12 @@ export default function MatchmakingModal({
                   </div>
                   {playersFound > 0 && waitingForMore > 0 && (
                     <div className="text-sm text-gray-600">
-                      {playersFound}/4 players ready. Filling {waitingForMore}{" "}
-                      spots with bots...
+                      {playersFound}/4 players ready. Starting game...
                     </div>
                   )}
-                  <div className="text-sm text-gray-500">Starting game...</div>
+                  <div className="text-sm text-gray-500">
+                    Get ready to play!
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">

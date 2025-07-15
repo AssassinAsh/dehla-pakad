@@ -69,7 +69,7 @@ export default function ReplayModal({
     } else {
       setShowConfetti(false);
     }
-  }, [isOpen, gameResult.result, windowDimensions, showConfetti]);
+  }, [isOpen, gameResult.result]);
 
   // Auto-leave countdown for quick-bots mode (15 seconds to decide)
   useEffect(() => {
@@ -156,24 +156,15 @@ export default function ReplayModal({
         }
 
       case "lobby":
-        if (replayState?.isWaitingForVotes) {
-          return (
-            <div className="flex-1 bg-blue-100 border-2 border-blue-500 text-blue-700 font-bold py-3 px-6 rounded-lg flex items-center justify-center">
-              <span className="mr-2">⏳</span>
-              Votes: {replayState.currentVotes}/{replayState.votesNeeded}
-            </div>
-          );
-        } else {
-          return (
-            <button
-              onClick={onReplay}
-              className="flex-1 bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
-            >
-              <span className="mr-2">🎮</span>
-              Replay
-            </button>
-          );
-        }
+        return (
+          <button
+            onClick={onReplay}
+            className="flex-1 bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+          >
+            <span className="mr-2">🎮</span>
+            Replay
+          </button>
+        );
 
       default:
         return (
@@ -276,32 +267,6 @@ export default function ReplayModal({
             </div>
           )}
 
-          {/* Lobby Vote Status */}
-          {gameMode === "lobby" && replayState?.isWaitingForVotes && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-              <div className="text-center text-purple-700">
-                <div className="font-semibold">
-                  Players voting for replay...
-                </div>
-                <div className="text-sm">
-                  {replayState.currentVotes} of {replayState.votesNeeded} votes
-                  needed
-                </div>
-                <div className="mt-2 bg-purple-200 rounded-full h-2">
-                  <div
-                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${
-                        (replayState.currentVotes / replayState.votesNeeded) *
-                        100
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Quick-bots timeout warning */}
           {gameMode === "quick-bots" && showCountdown && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
@@ -353,7 +318,7 @@ export default function ReplayModal({
               {gameMode === "private" &&
                 "Only the room host can start a new game"}
               {gameMode === "lobby" &&
-                "Join a new lobby to play with different players"}
+                "Click 'Replay' to join a new lobby with other players"}
             </div>
           )}
         </div>
