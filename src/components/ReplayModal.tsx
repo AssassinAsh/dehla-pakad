@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Confetti from "react-confetti";
 
 interface ReplayModalProps {
   isOpen: boolean;
@@ -35,6 +36,39 @@ export default function ReplayModal({
 }: ReplayModalProps) {
   const [countdown, setCountdown] = useState(15);
   const [showCountdown, setShowCountdown] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
+
+  // Set window dimensions for confetti
+  useEffect(() => {
+    const updateDimensions = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    updateDimensions();
+    window.addEventListener("resize", updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
+  }, []);
+
+  // Show confetti for victories
+  useEffect(() => {
+    if (isOpen && gameResult.result === "win") {
+      setShowConfetti(true);
+      // Stop confetti after 5 seconds
+      const timer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowConfetti(false);
+    }
+  }, [isOpen, gameResult.result]);
 
   // Auto-leave countdown for quick-bots mode (15 seconds to decide)
   useEffect(() => {
@@ -163,144 +197,169 @@ export default function ReplayModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {getGameModeTitle()}
-          </h2>
-          <div className={`text-3xl font-bold ${getResultColor()}`}>
-            {getResultMessage()}
-          </div>
-        </div>
+    <>
+      {/* Victory Confetti */}
+      {showConfetti && (
+        <Confetti
+          width={windowDimensions.width}
+          height={windowDimensions.height}
+          numberOfPieces={200}
+          recycle={false}
+          colors={[
+            "#ff6b6b",
+            "#4ecdc4",
+            "#45b7d1",
+            "#f9ca24",
+            "#6c5ce7",
+            "#a8e6cf",
+          ]}
+        />
+      )}
 
-        {/* Score Display */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <div className="text-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">
-              Final Score
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {getGameModeTitle()}
+            </h2>
+            <div className={`text-3xl font-bold ${getResultColor()}`}>
+              {getResultMessage()}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <div className="text-sm text-gray-600">Team 1</div>
-                <div className="text-lg font-bold text-gray-800">
-                  {gameResult.t1Tens} tens • {gameResult.t1Tricks} tricks
+          </div>
+
+          {/* Score Display */}
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-gray-700 mb-2">
+                Final Score
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-sm text-gray-600">Team 1</div>
+                  <div className="text-lg font-bold text-gray-800">
+                    {gameResult.t1Tens} tens • {gameResult.t1Tricks} tricks
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm text-gray-600">Team 2</div>
+                  <div className="text-lg font-bold text-gray-800">
+                    {gameResult.t2Tens} tens • {gameResult.t2Tricks} tricks
+                  </div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-sm text-gray-600">Team 2</div>
-                <div className="text-lg font-bold text-gray-800">
-                  {gameResult.t2Tens} tens • {gameResult.t2Tricks} tricks
+            </div>
+          </div>
+
+          {/* Special Result Badges */}
+          {gameResult.isKot && (
+            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-4 text-center">
+              <span className="text-red-700 font-bold">⚡ KOT Game!</span>
+            </div>
+          )}
+
+          {gameResult.isDraw && (
+            <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-3 mb-4 text-center">
+              <span className="text-yellow-700 font-bold">🤝 Draw Game!</span>
+            </div>
+          )}
+
+          {/* Private Room Vote Status */}
+          {gameMode === "private" && replayState?.isWaitingForVotes && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="text-center text-blue-700">
+                <div className="font-semibold">
+                  Waiting for host decision...
+                </div>
+                <div className="text-sm">
+                  The room host will decide if you play again
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Lobby Vote Status */}
+          {gameMode === "lobby" && replayState?.isWaitingForVotes && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+              <div className="text-center text-purple-700">
+                <div className="font-semibold">
+                  Players voting for replay...
+                </div>
+                <div className="text-sm">
+                  {replayState.currentVotes} of {replayState.votesNeeded} votes
+                  needed
+                </div>
+                <div className="mt-2 bg-purple-200 rounded-full h-2">
+                  <div
+                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${
+                        (replayState.currentVotes / replayState.votesNeeded) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick-bots timeout warning */}
+          {gameMode === "quick-bots" && showCountdown && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+              <div className="text-center text-orange-700">
+                <div className="font-semibold">⏰ Make Your Choice</div>
+                <div className="text-sm">
+                  Choose to play again or leave the game
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            {renderReplayButton()}
+
+            <button
+              onClick={onLeave}
+              className="flex-1 bg-gray-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center"
+            >
+              <span className="mr-2">🏠</span>
+              Leave Game
+            </button>
           </div>
+
+          {/* Countdown Timer - Placed below buttons */}
+          {gameMode === "quick-bots" && showCountdown && (
+            <div className="mt-4 text-center">
+              <div className="bg-orange-100 rounded-lg p-3">
+                <div className="text-orange-700 font-semibold text-sm mb-2">
+                  Auto-leaving in {countdown} seconds
+                </div>
+                {/* Progress bar showing time remaining */}
+                <div className="bg-orange-200 rounded-full h-2">
+                  <div
+                    className="bg-orange-600 h-2 rounded-full transition-all duration-1000 ease-linear"
+                    style={{
+                      width: `${(countdown / 15) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Game Mode Info */}
+          {gameMode !== "quick-bots" && (
+            <div className="mt-4 text-center text-xs text-gray-500">
+              {gameMode === "private" &&
+                "Only the room host can start a new game"}
+              {gameMode === "lobby" &&
+                "Join a new lobby to play with different players"}
+            </div>
+          )}
         </div>
-
-        {/* Special Result Badges */}
-        {gameResult.isKot && (
-          <div className="bg-red-100 border border-red-300 rounded-lg p-3 mb-4 text-center">
-            <span className="text-red-700 font-bold">⚡ KOT Game!</span>
-          </div>
-        )}
-
-        {gameResult.isDraw && (
-          <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-3 mb-4 text-center">
-            <span className="text-yellow-700 font-bold">🤝 Draw Game!</span>
-          </div>
-        )}
-
-        {/* Private Room Vote Status */}
-        {gameMode === "private" && replayState?.isWaitingForVotes && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <div className="text-center text-blue-700">
-              <div className="font-semibold">Waiting for host decision...</div>
-              <div className="text-sm">
-                The room host will decide if you play again
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Lobby Vote Status */}
-        {gameMode === "lobby" && replayState?.isWaitingForVotes && (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-            <div className="text-center text-purple-700">
-              <div className="font-semibold">Players voting for replay...</div>
-              <div className="text-sm">
-                {replayState.currentVotes} of {replayState.votesNeeded} votes
-                needed
-              </div>
-              <div className="mt-2 bg-purple-200 rounded-full h-2">
-                <div
-                  className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${
-                      (replayState.currentVotes / replayState.votesNeeded) * 100
-                    }%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Quick-bots timeout warning */}
-        {gameMode === "quick-bots" && showCountdown && (
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-            <div className="text-center text-orange-700">
-              <div className="font-semibold">⏰ Make Your Choice</div>
-              <div className="text-sm">
-                Choose to play again or leave the game
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          {renderReplayButton()}
-
-          <button
-            onClick={onLeave}
-            className="flex-1 bg-gray-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center"
-          >
-            <span className="mr-2">🏠</span>
-            Leave Game
-          </button>
-        </div>
-
-        {/* Countdown Timer - Placed below buttons */}
-        {gameMode === "quick-bots" && showCountdown && (
-          <div className="mt-4 text-center">
-            <div className="bg-orange-100 rounded-lg p-3">
-              <div className="text-orange-700 font-semibold text-sm mb-2">
-                Auto-leaving in {countdown} seconds
-              </div>
-              {/* Progress bar showing time remaining */}
-              <div className="bg-orange-200 rounded-full h-2">
-                <div
-                  className="bg-orange-600 h-2 rounded-full transition-all duration-1000 ease-linear"
-                  style={{
-                    width: `${(countdown / 15) * 100}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Game Mode Info */}
-        {gameMode !== "quick-bots" && (
-          <div className="mt-4 text-center text-xs text-gray-500">
-            {gameMode === "private" &&
-              "Only the room host can start a new game"}
-            {gameMode === "lobby" &&
-              "Join a new lobby to play with different players"}
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 }

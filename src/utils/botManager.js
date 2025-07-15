@@ -306,6 +306,23 @@ export class BotManager {
           return;
         }
 
+        // ADDITIONAL VALIDATION: Ensure bot's chosen card follows suit rules
+        const leadSuit =
+          room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
+        if (leadSuit && chosenCard.suit !== leadSuit) {
+          // Check if bot has cards of the lead suit
+          const hasLeadSuit = currentPlayer.hand.some(
+            (card) => card.suit === leadSuit
+          );
+          if (hasLeadSuit) {
+            console.error(
+              `Bot ${currentPlayer.name} chose invalid card ${chosenCard.rank} of ${chosenCard.suit} when must follow ${leadSuit}!`
+            );
+            currentPlayer.isThinking = false;
+            return; // Don't allow invalid moves
+          }
+        }
+
         // Track bot action metric
         metrics.incrementBotActions();
 

@@ -68,22 +68,31 @@ export class BotEngine {
       return null;
     }
 
-    // Filter valid cards (must follow suit if possible)
-    let validCards = hand;
+    // STRICT SUIT FOLLOWING LOGIC - Same as human players
+    let validCards = [...hand]; // Start with all cards
+
     if (leadSuit) {
-      const hasLeadSuit = hand.some((card) => card.suit === leadSuit);
-      if (hasLeadSuit) {
-        validCards = hand.filter((card) => card.suit === leadSuit);
+      // Check if bot has any cards of the lead suit
+      const cardsOfLeadSuit = hand.filter((card) => card.suit === leadSuit);
+
+      if (cardsOfLeadSuit.length > 0) {
+        // Bot MUST play a card of the lead suit
+        validCards = cardsOfLeadSuit;
+      } else {
+        // Bot has no cards of lead suit, can play any card
+        validCards = [...hand];
       }
+    } else {
+      // No lead suit (first card of trick), bot can play any card
+      validCards = [...hand];
     }
 
-    if (validCards.length === 0) {
-      validCards = hand; // All cards are valid if can't follow suit
-    }
-
-    // Final validation - ensure we still have valid cards
+    // Final validation - ensure we have valid cards
     if (!validCards || validCards.length === 0) {
-      console.error(`Bot ${player.name} has no valid cards to play`);
+      console.error(
+        `Bot ${player.name} has no valid cards to play - this should not happen!`
+      );
+      // Emergency fallback - return first card in hand
       return hand && hand.length > 0 ? hand[0] : null;
     }
 
