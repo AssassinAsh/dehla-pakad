@@ -46,11 +46,12 @@ export default function ReplayModal({
   useEffect(() => {
     const updateDimensions = () => {
       setWindowDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight,
+        width: window.innerWidth || 1200,
+        height: window.innerHeight || 800,
       });
     };
 
+    // Set initial dimensions immediately
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
@@ -68,7 +69,7 @@ export default function ReplayModal({
     } else {
       setShowConfetti(false);
     }
-  }, [isOpen, gameResult.result]);
+  }, [isOpen, gameResult.result, windowDimensions, showConfetti]);
 
   // Auto-leave countdown for quick-bots mode (15 seconds to decide)
   useEffect(() => {
@@ -130,22 +131,12 @@ export default function ReplayModal({
             className="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
           >
             <span className="mr-2">🎮</span>
-            Play Again
+            Replay
           </button>
         );
 
       case "private":
-        if (replayState?.isHost) {
-          return (
-            <button
-              onClick={onReplay}
-              className="flex-1 bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
-            >
-              <span className="mr-2">👑</span>
-              Start New Game
-            </button>
-          );
-        } else if (replayState?.isWaitingForVotes) {
+        if (replayState?.isWaitingForVotes) {
           return (
             <div className="flex-1 bg-gray-100 border-2 border-green-500 text-green-700 font-bold py-3 px-6 rounded-lg flex items-center justify-center">
               <span className="mr-2">⏳</span>
@@ -159,7 +150,7 @@ export default function ReplayModal({
               className="flex-1 bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
             >
               <span className="mr-2">🔄</span>
-              Request Replay
+              Replay
             </button>
           );
         }
@@ -179,7 +170,7 @@ export default function ReplayModal({
               className="flex-1 bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
             >
               <span className="mr-2">🎮</span>
-              Join New Lobby
+              Replay
             </button>
           );
         }
@@ -190,7 +181,7 @@ export default function ReplayModal({
             onClick={onReplay}
             className="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Play Again
+            Replay
           </button>
         );
     }
@@ -200,20 +191,27 @@ export default function ReplayModal({
     <>
       {/* Victory Confetti */}
       {showConfetti && (
-        <Confetti
-          width={windowDimensions.width}
-          height={windowDimensions.height}
-          numberOfPieces={200}
-          recycle={false}
-          colors={[
-            "#ff6b6b",
-            "#4ecdc4",
-            "#45b7d1",
-            "#f9ca24",
-            "#6c5ce7",
-            "#a8e6cf",
-          ]}
-        />
+        <div className="fixed inset-0 z-[60] pointer-events-none">
+          <Confetti
+            width={windowDimensions.width}
+            height={windowDimensions.height}
+            numberOfPieces={300}
+            recycle={true}
+            colors={[
+              "#ff6b6b",
+              "#4ecdc4",
+              "#45b7d1",
+              "#f9ca24",
+              "#6c5ce7",
+              "#a8e6cf",
+              "#fd79a8",
+              "#e17055",
+            ]}
+            gravity={0.3}
+            initialVelocityX={5}
+            initialVelocityY={15}
+          />
+        </div>
       )}
 
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

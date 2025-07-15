@@ -465,14 +465,29 @@ export class RoomManager {
   }
 
   static async handleQuickBotsReplay(roomId, io) {
-    // Instant replay for single player vs bots
+    // Reset game state and set to waiting for ready
     const success = await this.resetGameState(roomId);
     if (success) {
-      io.to(roomId).emit("gameRestarted", {
-        message: "Starting new game...",
-        mode: "quick-bots",
+      const room = await this.getRoom(roomId);
+
+      // Ensure bots are properly seated for quick-bots mode
+      const { BotManager } = await import("./botManager.js");
+      BotManager.addBotsToRoom(roomId, room, "medium");
+
+      // Reset ready states - humans need to click ready, bots are auto-ready
+      room.players.forEach((player) => {
+        if (!player.isBot) {
+          player.isReady = false;
+        } else {
+          player.isReady = true;
+        }
       });
-      return { success: true, message: "Game restarted instantly" };
+
+      room.gameStarted = false;
+      await this.updateRoom(roomId, room);
+
+      io.to(roomId).emit("roomUpdated", room);
+      return { success: true, message: "Game reset. Get ready to play again!" };
     }
     return { success: false, message: "Failed to restart game" };
   }
@@ -493,13 +508,23 @@ export class RoomManager {
     }
 
     // Host initiates replay
-    const success = this.resetGameState(roomId);
+    const success = await this.resetGameState(roomId);
     if (success) {
-      io.to(roomId).emit("gameRestarted", {
-        message: "Host started a new game!",
-        mode: "private",
+      const room = await this.getRoom(roomId);
+      // Reset ready states for all human players
+      room.players.forEach((player) => {
+        if (!player.isBot) {
+          player.isReady = false;
+        }
       });
-      return { success: true, message: "New game started by host" };
+      room.gameStarted = false;
+      await this.updateRoom(roomId, room);
+
+      io.to(roomId).emit("roomUpdated", room);
+      return {
+        success: true,
+        message: "Game reset by host. Get ready to play again!",
+      };
     }
     return { success: false, message: "Failed to restart game" };
   }
@@ -599,7 +624,8 @@ export class RoomManager {
       // Reset player hands but keep them in their seats
       room.players.forEach((player) => {
         player.hand = [];
-        player.isReady = room.gameMode === "quick-bots" ? true : false; // Auto-ready for bots
+        // Auto-ready bots, humans need to click ready
+        player.isReady = player.isBot === true;
       });
 
       // Update room in Redis

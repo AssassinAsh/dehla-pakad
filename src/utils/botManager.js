@@ -148,6 +148,7 @@ export class BotManager {
         // Finished dealing remaining cards
         // Final update and continue with next turn
         RoomManager.updateRoom(roomId, room);
+
         if (this.emitRoomUpdateFn) {
           this.emitRoomUpdateFn(roomId, io, 100);
         } else {

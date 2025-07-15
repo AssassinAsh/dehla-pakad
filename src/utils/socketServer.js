@@ -440,6 +440,9 @@ export default function setupSocketIO(server) {
           // Use optimized dealing with proper dealer logic
           await dealCardsOptimized(room, roomId, io, deck, dealerSeat);
 
+          // Check card integrity after initial dealing
+          BotManager.checkCardIntegrity(roomId, room, "after-initial-dealing");
+
           // Finish dealing
           room.gameStarted = true;
           room.gameState.status = "in-progress";
@@ -591,7 +594,11 @@ export default function setupSocketIO(server) {
         if (!player) return;
 
         // Use enhanced replay system
-        const result = RoomManager.handleReplayRequest(roomId, player.name, io);
+        const result = await RoomManager.handleReplayRequest(
+          roomId,
+          player.name,
+          io
+        );
 
         // Send feedback to the requesting player
         socket.emit("replayResponse", result);
@@ -608,9 +615,25 @@ export default function setupSocketIO(server) {
     socket.on("leaveRoom", async (roomId) => {
       const room = await RoomManager.getRoom(roomId);
       if (room) {
+        // Find the leaving player
+        const leavingPlayer = room.players.find((p) => p.id === socket.id);
+        const isHost = leavingPlayer && room.host === leavingPlayer.name;
+
         await RoomManager.removePlayerFromRoom(roomId, socket.id);
         const updatedRoom = await RoomManager.getRoom(roomId);
-        if (updatedRoom) {
+
+        if (isHost && updatedRoom && updatedRoom.players.length > 0) {
+          // Host left, notify remaining players
+          io.to(roomId).emit("hostLeft", {
+            message:
+              "Host left the game. You will be redirected to the home page.",
+          });
+
+          // Remove the room after a delay to let players see the message
+          setTimeout(async () => {
+            await RoomManager.removeRoom(roomId);
+          }, 3000);
+        } else if (updatedRoom) {
           emitRoomUpdate(roomId, io);
         }
       }
@@ -636,9 +659,23 @@ export default function setupSocketIO(server) {
           // Check if the player has reconnected with a new socket ID
           const player = room.players.find((p) => p.id === socket.id);
           if (player && !player.isConnected) {
+            const isHost = room.host === player.name;
+
             await RoomManager.removePlayerFromRoom(room.id, socket.id);
             const updatedRoom = await RoomManager.getRoom(room.id);
-            if (updatedRoom) {
+
+            if (isHost && updatedRoom && updatedRoom.players.length > 0) {
+              // Host disconnected, notify remaining players
+              io.to(room.id).emit("hostLeft", {
+                message:
+                  "Host disconnected and left the game. You will be redirected to the home page.",
+              });
+
+              // Remove the room after a delay
+              setTimeout(async () => {
+                await RoomManager.removeRoom(room.id);
+              }, 3000);
+            } else if (updatedRoom) {
               emitRoomUpdate(room.id, io);
             }
           }

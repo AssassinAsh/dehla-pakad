@@ -5,7 +5,7 @@ import { useEffect } from "react";
 interface ToastProps {
   message: string;
   onClose: () => void;
-  type?: "error" | "success" | "game";
+  type?: "error" | "success" | "game" | "info";
   duration?: number;
 }
 
@@ -64,6 +64,25 @@ export default function Toast({
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
       </svg>
     );
+  } else if (type === "info") {
+    bgColor = "bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700";
+    borderColor = "border-blue-300/50";
+    icon = (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5 sm:h-6 sm:w-6 text-white"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+    );
   } else {
     // 'game' type
     bgColor = "bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500";
@@ -97,6 +116,8 @@ export default function Toast({
               ? "0 20px 40px rgba(251, 192, 45, 0.3), 0 8px 16px rgba(0,0,0,0.1)"
               : type === "success"
               ? "0 20px 40px rgba(34, 197, 94, 0.3), 0 8px 16px rgba(0,0,0,0.1)"
+              : type === "info"
+              ? "0 20px 40px rgba(59, 130, 246, 0.3), 0 8px 16px rgba(0,0,0,0.1)"
               : "0 20px 40px rgba(239, 68, 68, 0.3), 0 8px 16px rgba(0,0,0,0.1)",
         }}
       >

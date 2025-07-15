@@ -53,6 +53,20 @@ export default function RoomPage() {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false); // State for modal
   const [error, setError] = useState<string | null>(null); // State for error toast
+  const [toastType, setToastType] = useState<
+    "error" | "success" | "game" | "info"
+  >("error");
+
+  // Helper functions for different toast types
+  const showError = (message: string) => {
+    setToastType("error");
+    setError(message);
+  };
+
+  const showInfo = (message: string) => {
+    setToastType("info");
+    setError(message);
+  };
 
   // Initialize Socket.IO client
   useEffect(() => {
@@ -65,6 +79,11 @@ export default function RoomPage() {
         // Remove any existing room-specific event listeners to avoid conflicts
         socket.removeAllListeners("roomUpdated");
         socket.removeAllListeners("error");
+        socket.removeAllListeners("gameRestarted");
+        socket.removeAllListeners("replayRequestReceived");
+        socket.removeAllListeners("replayApproved");
+        socket.removeAllListeners("replayResponse");
+        socket.removeAllListeners("hostLeft");
 
         // If socket is already connected, immediately run the logic
         if (socket.connected) {
@@ -82,7 +101,7 @@ export default function RoomPage() {
             socket.emit("checkRoom", roomId, (exists: boolean) => {
               if (!exists) {
                 console.error("Room doesn't exist:", roomId);
-                setError(`Room ${roomId} doesn't exist or has been closed.`);
+                showError(`Room ${roomId} doesn't exist or has been closed.`);
                 setTimeout(() => {
                   window.location.href = "/";
                 }, 3000);
@@ -110,12 +129,12 @@ export default function RoomPage() {
 
         socket.on("connect_error", (error: Error) => {
           console.error("Socket.IO connection error:", error);
-          setError("Connection to server failed. Please refresh.");
+          showError("Connection to server failed. Please refresh.");
         });
 
         // Listen for joinRoom callback errors
         socket.on("error", (message: string) => {
-          setError(message);
+          showError(message);
         });
 
         // Join room for updates (server will add to socket.join on create/join events)
@@ -128,9 +147,61 @@ export default function RoomPage() {
             setCurrentPlayer(me);
           }
         });
+
+        // Handle replay events
+        socket.on("gameRestarted", () => {
+          setError(null);
+          setShowReplayModal(false);
+          setEndgameResult(null);
+        });
+
+        socket.on(
+          "replayRequestReceived",
+          (data: { requester: string; message: string }) => {
+            // Show info notification that someone requested a replay
+            showInfo(data.message);
+          }
+        );
+
+        socket.on(
+          "replayApproved",
+          (data: { message: string; mode: string }) => {
+            if (data.mode === "lobby") {
+              // For lobby mode, redirect to home to join a new lobby
+              showInfo(data.message);
+              setTimeout(() => {
+                window.location.href = "/";
+              }, 2000);
+            }
+          }
+        );
+
+        socket.on(
+          "replayResponse",
+          (response: { success: boolean; message: string }) => {
+            if (response.success) {
+              // For successful replay, close the modal and return to game table
+              setShowReplayModal(false);
+              setEndgameResult(null);
+            } else {
+              // Only show error messages
+              if (response.message && response.message.trim()) {
+                showError(response.message);
+              }
+            }
+          }
+        );
+
+        // Handle admin/host leaving
+        socket.on("hostLeft", (data: { message: string }) => {
+          showError(data.message);
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 3000);
+        });
       } catch (error) {
         console.error("Failed to connect socket:", error);
-        setError("Failed to connect to server. Please refresh.");
+        showError("Failed to connect to server. Please refresh.");
       }
     };
 
@@ -141,6 +212,11 @@ export default function RoomPage() {
       if (socketRef.current) {
         socketRef.current.removeAllListeners("roomUpdated");
         socketRef.current.removeAllListeners("error");
+        socketRef.current.removeAllListeners("gameRestarted");
+        socketRef.current.removeAllListeners("replayRequestReceived");
+        socketRef.current.removeAllListeners("replayApproved");
+        socketRef.current.removeAllListeners("replayResponse");
+        socketRef.current.removeAllListeners("hostLeft");
       }
     };
   }, [roomId, playerName]);
@@ -255,6 +331,7 @@ export default function RoomPage() {
       ) {
         result = "win";
       }
+
       setEndgameResult({
         result,
         isKot,
@@ -448,7 +525,11 @@ export default function RoomPage() {
         onClose={() => setIsRulesModalOpen(false)}
       />
       {error && (
-        <Toast message={error} onClose={() => setError(null)} type="error" />
+        <Toast
+          message={error}
+          onClose={() => setError(null)}
+          type={toastType}
+        />
       )}
     </DndContext>
   );
