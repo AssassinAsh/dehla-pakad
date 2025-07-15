@@ -20,6 +20,85 @@ export class MatchmakingQueue {
   }
 
   /**
+   * Ludo-style lobby join: always join a single global lobby, fill with bots if needed
+   */
+  static handleLobbyJoin(player) {
+    // Remove from queue if already there
+    this.queue.delete(player.socketId);
+
+    // Try to find an existing waiting room with available slots
+    for (const [roomId, roomData] of this.waitingRooms.entries()) {
+      const room = roomData.room;
+      if (room.players.length < this.MAX_PLAYERS_PER_ROOM) {
+        this.addPlayerToWaitingRoom(roomId, player);
+
+        // Notify all players in the room about the update
+        this.notifyRoomUpdate(roomId, room);
+
+        // If room is full, start the game immediately
+        if (room.players.length === this.MAX_PLAYERS_PER_ROOM) {
+          this.startGameFromWaitingRoom(roomId);
+          return { status: "starting", roomId };
+        }
+
+        // Player joined lobby, show waiting screen
+        return {
+          status: "queued",
+          roomId,
+          lobbyInfo: {
+            playersCount: room.players.length,
+            maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+            timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
+          },
+        };
+      }
+    }
+
+    // No available room, create a new one
+    const roomId = this.generateRoomId();
+    const room = RoomManager.createRoom(roomId, player);
+
+    // Assign random seat to player
+    player.seat = this.getRandomAvailableSeat(room);
+    room.players[0].seat = player.seat;
+
+    const roomData = {
+      room,
+      createdAt: Date.now(),
+      playerCount: 1,
+      timer: null,
+    };
+
+    this.waitingRooms.set(roomId, roomData);
+
+    // Set timer to fill with bots after 15 seconds
+    roomData.timer = setTimeout(() => {
+      this.fillRoomWithBots(roomId);
+    }, 15000); // 15 seconds as requested
+
+    // Notify player they joined a new lobby
+    if (this.io) {
+      this.io.to(player.socketId).emit("lobbyJoined", {
+        roomId,
+        message: `Lobby created! Waiting for more players...`,
+        playersCount: 1,
+        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+        timeRemaining: 15,
+      });
+    }
+
+    return {
+      status: "queued",
+      roomId,
+      lobbyInfo: {
+        playersCount: 1,
+        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+        timeRemaining: 15,
+      },
+    };
+  }
+
+  /**
    * Add player to matchmaking queue
    */
   static addPlayerToQueue(player, preferences = {}) {
@@ -29,7 +108,7 @@ export class MatchmakingQueue {
       ...player,
       joinedAt: Date.now(),
       preferences: {
-        mode: preferences.mode || "prefer-humans", // "quick-bots", "prefer-humans", "humans-only"
+        mode: preferences.mode || "lobby", // Simplified: "lobby", "quick-bots"
         region: preferences.region || "global",
         skillLevel: preferences.skillLevel || "mixed",
       },
@@ -37,12 +116,17 @@ export class MatchmakingQueue {
 
     this.queue.set(player.socketId, queueEntry);
 
-    // Handle immediate bot games
+    // Handle immediate bot games (for "Play Computer" feature)
     if (preferences.mode === "quick-bots") {
       return this.createQuickBotGame(queueEntry);
     }
 
-    // Try to match with existing players
+    // For lobby mode, try to match with existing players or create new room
+    if (preferences.mode === "lobby") {
+      return this.handleLobbyJoin(queueEntry);
+    }
+
+    // Fallback to original matching logic
     this.attemptMatching();
 
     // Set individual player timeout
@@ -249,14 +333,9 @@ export class MatchmakingQueue {
     if (!roomData) return false;
 
     const room = roomData.room;
-    const availableSeats = [1, 2, 3, 4].filter(
-      (seat) => !room.players.some((p) => p.seat === seat)
-    );
 
-    if (availableSeats.length === 0) return false;
-
-    // Assign seat to player
-    player.seat = availableSeats[0];
+    // Assign random available seat
+    player.seat = this.getRandomAvailableSeat(room);
 
     // Add to room
     RoomManager.addPlayerToRoom(roomId, player);
@@ -271,6 +350,18 @@ export class MatchmakingQueue {
 
     // Update room data
     roomData.playerCount = room.players.length;
+
+    // Notify player they joined the lobby
+    if (this.io) {
+      this.io.to(player.socketId).emit("lobbyJoined", {
+        roomId,
+        message: `Joined lobby! ${room.players.length}/${this.MAX_PLAYERS_PER_ROOM} players ready.`,
+        playersCount: room.players.length,
+        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+        timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
+        yourSeat: player.seat,
+      });
+    }
 
     // Notify all players in the room
     this.notifyRoomUpdate(roomId, room);
@@ -396,22 +487,47 @@ export class MatchmakingQueue {
   }
 
   /**
-   * Notify room update
+   * Calculate time remaining for lobby
+   */
+  static calculateTimeRemaining(createdAt) {
+    const elapsed = Date.now() - createdAt;
+    const remaining = Math.max(0, Math.ceil((15000 - elapsed) / 1000));
+    return remaining;
+  }
+
+  /**
+   * Get random available seat (1-4)
+   */
+  static getRandomAvailableSeat(room) {
+    const occupiedSeats = room.players
+      .map((p) => p.seat)
+      .filter((seat) => seat);
+    const availableSeats = [1, 2, 3, 4].filter(
+      (seat) => !occupiedSeats.includes(seat)
+    );
+    return (
+      availableSeats[Math.floor(Math.random() * availableSeats.length)] || 1
+    );
+  }
+
+  /**
+   * Notify all players in a room about lobby updates
    */
   static notifyRoomUpdate(roomId, room) {
     if (!this.io) return;
 
+    const roomData = this.waitingRooms.get(roomId);
+    if (!roomData) return;
+
+    const lobbyInfo = {
+      playersCount: room.players.length,
+      maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+      timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
+      players: room.players.map((p) => ({ name: p.name, seat: p.seat })),
+    };
+
     room.players.forEach((player) => {
-      if (!BotManager.isBot(player)) {
-        this.io.to(player.socketId).emit("waitingRoomUpdate", {
-          roomId,
-          playersCount: room.players.length,
-          players: room.players.map((p) => ({
-            name: p.name,
-            isBot: BotManager.isBot(p),
-          })),
-        });
-      }
+      this.io.to(player.socketId).emit("lobbyUpdate", lobbyInfo);
     });
   }
 
