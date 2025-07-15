@@ -83,7 +83,9 @@ function DroppablePlayArea({ children, isMyTurn }: DroppablePlayAreaProps) {
 }
 
 export default function PlayArea({ room, mySeat }: PlayAreaProps) {
-  const currentPlayer = room.players.find((p) => p.seat === room.currentPlayer);
+  const currentPlayer = room.players?.find(
+    (p) => p.seat === room.currentPlayer
+  );
   const isMyTurn = currentPlayer?.seat === mySeat;
 
   return (
@@ -122,11 +124,11 @@ export default function PlayArea({ room, mySeat }: PlayAreaProps) {
         )}
 
         {/* Enhanced current trick with improved animations */}
-        {room.currentTrick.map(({ card, seat }, idx) => {
+        {room.currentTrick?.map(({ card, seat }, idx) => {
           const positionIndex = (seat - mySeat + 4) % 4;
           const positionStyle = cardPositions[positionIndex];
           const cardDisplayName = getCardDisplayName(card);
-          const isLatest = idx === room.currentTrick.length - 1;
+          const isLatest = idx === (room.currentTrick?.length || 0) - 1;
 
           return (
             <div

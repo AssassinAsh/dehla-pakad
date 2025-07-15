@@ -35,6 +35,16 @@ export class BotManager {
   // Add bots to fill empty seats in a room (for backward compatibility)
   static addBotsToRoom(roomId, room, difficulty = "medium") {
     const bots = [];
+
+    // Ensure room.players exists and is an array
+    if (!room || !Array.isArray(room.players)) {
+      console.error("Invalid room or room.players in addBotsToRoom:", {
+        roomId,
+        room,
+      });
+      return bots;
+    }
+
     const occupiedSeats = room.players.map((p) => p.seat);
 
     // Find empty seats and add bots
@@ -89,7 +99,6 @@ export class BotManager {
     if (room.trumpSetThisTrick) {
       room.trumpSetThisTrick = false;
       if (room.deck && room.deck.length > 0) {
-        console.log("Dealing remaining cards after trump set in trick...");
         this.dealRemainingCards(roomId, room, io);
         return true; // Indicates dealing is in progress
       }
@@ -102,9 +111,6 @@ export class BotManager {
       room.deck &&
       room.deck.length > 0
     ) {
-      console.log(
-        "5 tricks completed, trump not set, dealing remaining cards..."
-      );
       this.dealRemainingCards(roomId, room, io);
       return true; // Indicates dealing is in progress
     }
@@ -118,20 +124,18 @@ export class BotManager {
     room.deck = [];
 
     const dealCards = () => {
-      if (deck.length > 0) {
+      if (deck.length >= room.players.length) {
         // Deal one card to each player per iteration
-        for (let i = 0; i < room.players.length; i++) {
-          if (deck.length > 0) {
-            const player = room.players[i];
-            player.hand.push(deck.shift());
-          }
+        for (let i = 0; i < room.players.length && deck.length > 0; i++) {
+          const player = room.players[i];
+          player.hand.push(deck.shift());
         }
 
         // Update bot hands tracking
         this.updateBotHands(roomId, room);
 
         // Update room and broadcast
-        RoomManager.updateRoom(roomId, room);
+        RoomManager.updateRoomState(roomId, room);
         if (this.emitRoomUpdateFn) {
           this.emitRoomUpdateFn(roomId, io, 100);
         } else {
@@ -139,22 +143,9 @@ export class BotManager {
         }
 
         // Continue dealing after a short delay
-        setTimeout(dealCards, 300);
+        setTimeout(dealCards, 200);
       } else {
-        console.log("Finished dealing remaining cards.");
-
-        // VALIDATION: Ensure all players have cards before continuing
-        const playersWithoutCards = room.players.filter(
-          (p) => !p.hand || p.hand.length === 0
-        );
-        if (playersWithoutCards.length > 0) {
-          console.error(
-            "Error: Some players have no cards after dealing!",
-            playersWithoutCards.map((p) => p.name)
-          );
-          return; // Don't continue the game if players have no cards
-        }
-
+        // Finished dealing remaining cards
         // Final update and continue with next turn
         RoomManager.updateRoom(roomId, room);
         if (this.emitRoomUpdateFn) {
@@ -191,15 +182,15 @@ export class BotManager {
   }
 
   // Simplified turn handler - treats bots and humans the same
-  static handleTurn(roomId, room, io) {
+  static async handleTurn(roomId, room, io) {
     // Always get the latest room state to avoid race conditions
-    const latestRoom = RoomManager.getRoom(roomId);
+    const latestRoom = await RoomManager.getRoom(roomId);
     if (!latestRoom) {
       return;
     }
 
     // Validate that the game is still in progress
-    if (latestRoom.gameState.status !== "in-progress") {
+    if (latestRoom.gameState?.status !== "in-progress") {
       return;
     }
 
@@ -252,9 +243,9 @@ export class BotManager {
     currentPlayer.isThinking = true;
 
     // Add a delay to make bot play feel natural
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
-        const room = RoomManager.getRoom(roomId);
+        const room = await RoomManager.getRoom(roomId);
         if (!room) {
           currentPlayer.isThinking = false;
           return;
@@ -337,7 +328,7 @@ export class BotManager {
 
         // Now simulate the same card play that a human would do
         // This uses the exact same logic as the human playCard handler
-        this.simulateCardPlay(roomId, currentPlayer, chosenCard, io);
+        await this.simulateCardPlay(roomId, currentPlayer, chosenCard, io);
       } catch (error) {
         console.error(
           `Error in automatic bot play for ${currentPlayer.name}:`,
@@ -349,12 +340,12 @@ export class BotManager {
   }
 
   // Simulate a card play exactly like a human would do it
-  static simulateCardPlay(roomId, player, chosenCard, io) {
+  static async simulateCardPlay(roomId, player, chosenCard, io) {
     // Clear thinking flag
     player.isThinking = false;
 
     // Get the room
-    const room = RoomManager.getRoom(roomId);
+    const room = await RoomManager.getRoom(roomId);
     if (!room) {
       return;
     }

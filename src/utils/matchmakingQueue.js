@@ -22,21 +22,32 @@ export class MatchmakingQueue {
   /**
    * Ludo-style lobby join: always join a single global lobby, fill with bots if needed
    */
-  static handleLobbyJoin(player) {
+  static async handleLobbyJoin(player) {
     // Remove from queue if already there
     this.queue.delete(player.socketId);
 
     // Try to find an existing waiting room with available slots
     for (const [roomId, roomData] of this.waitingRooms.entries()) {
       const room = roomData.room;
-      if (room.players.length < this.MAX_PLAYERS_PER_ROOM) {
-        this.addPlayerToWaitingRoom(roomId, player);
+      if (
+        room &&
+        room.players &&
+        room.players.length < this.MAX_PLAYERS_PER_ROOM
+      ) {
+        const success = await this.addPlayerToWaitingRoom(roomId, player);
+        if (!success) {
+          continue; // Try next room if this one failed
+        }
+
+        // Get updated room for notifications
+        const updatedRoom = await RoomManager.getRoom(roomId);
+        const finalRoom = updatedRoom || room;
 
         // Notify all players in the room about the update
-        this.notifyRoomUpdate(roomId, room);
+        this.notifyRoomUpdate(roomId, finalRoom);
 
         // If room is full, start the game immediately
-        if (room.players.length === this.MAX_PLAYERS_PER_ROOM) {
+        if (finalRoom.players.length === this.MAX_PLAYERS_PER_ROOM) {
           this.startGameFromWaitingRoom(roomId);
           return { status: "starting", roomId };
         }
@@ -46,7 +57,7 @@ export class MatchmakingQueue {
           status: "queued",
           roomId,
           lobbyInfo: {
-            playersCount: room.players.length,
+            playersCount: finalRoom.players.length,
             maxPlayers: this.MAX_PLAYERS_PER_ROOM,
             timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
           },
@@ -56,14 +67,14 @@ export class MatchmakingQueue {
 
     // No available room, create a new one
     const roomId = this.generateRoomId();
-    const room = RoomManager.createRoom(roomId, player);
+
+    // Assign seat to player before creating room
+    player.seat = 1; // First player in new lobby gets seat 1
+
+    const room = await RoomManager.createRoom(roomId, player);
 
     // Set game mode for lobby
     RoomManager.setGameMode(roomId, "lobby");
-
-    // Assign random seat to player
-    player.seat = this.getRandomAvailableSeat(room);
-    room.players[0].seat = player.seat;
 
     const roomData = {
       room,
@@ -104,8 +115,9 @@ export class MatchmakingQueue {
   /**
    * Add player to matchmaking queue
    */
-  static addPlayerToQueue(player, preferences = {}) {
+  static async addPlayerToQueue(player, preferences = {}) {
     console.log(`Adding player ${player.name} to matchmaking queue`);
+    console.log(`Preferences:`, preferences);
 
     const queueEntry = {
       ...player,
@@ -121,12 +133,14 @@ export class MatchmakingQueue {
 
     // Handle immediate bot games (for "Play Computer" feature)
     if (preferences.mode === "quick-bots") {
-      return this.createQuickBotGame(queueEntry);
+      console.log(`🎯 Creating quick bot game for ${player.name}`);
+      return await this.createQuickBotGame(queueEntry);
     }
 
     // For lobby mode, try to match with existing players or create new room
     if (preferences.mode === "lobby") {
-      return this.handleLobbyJoin(queueEntry);
+      console.log(`🎮 Joining lobby for ${player.name}`);
+      return await this.handleLobbyJoin(queueEntry);
     }
 
     // Fallback to original matching logic
@@ -233,9 +247,9 @@ export class MatchmakingQueue {
   }
 
   /**
-   * Create a quick game with bots
+   * Create a quick game with bots - direct creation without lobby
    */
-  static createQuickBotGame(player) {
+  static async createQuickBotGame(player) {
     console.log(`Creating quick bot game for ${player.name}`);
 
     const roomId = this.generateRoomId();
@@ -243,11 +257,11 @@ export class MatchmakingQueue {
     // Assign player to seat 1
     player.seat = 1;
 
-    // Create room
-    const room = RoomManager.createRoom(roomId, player);
+    // Create room directly
+    const room = await RoomManager.createRoom(roomId, player);
 
     // Set game mode for quick-bots
-    RoomManager.setGameMode(roomId, "quick-bots");
+    await RoomManager.setGameMode(roomId, "quick-bots");
 
     // Add bots to remaining seats
     BotManager.addBotsToRoom(roomId, room, "medium");
@@ -258,13 +272,9 @@ export class MatchmakingQueue {
     // Remove player from queue
     this.removePlayerFromQueue(player.socketId);
 
-    // Notify player to join room
-    if (this.io) {
-      this.io.to(player.socketId).emit("matchFound", {
-        roomId,
-        message: "Quick game with bots created!",
-      });
-    }
+    console.log(
+      `Quick bot game ${roomId} created successfully for ${player.name}`
+    );
 
     return { status: "matched", roomId, gameType: "quick-bots" };
   }
@@ -334,17 +344,33 @@ export class MatchmakingQueue {
   /**
    * Add player to existing waiting room
    */
-  static addPlayerToWaitingRoom(roomId, player) {
+  static async addPlayerToWaitingRoom(roomId, player) {
     const roomData = this.waitingRooms.get(roomId);
-    if (!roomData) return false;
+    if (!roomData || !roomData.room) return false;
 
     const room = roomData.room;
+    if (!room.players) {
+      console.warn(
+        `Room ${roomId} has no players array in addPlayerToWaitingRoom`
+      );
+      return false;
+    }
 
     // Assign random available seat
     player.seat = this.getRandomAvailableSeat(room);
 
-    // Add to room
-    RoomManager.addPlayerToRoom(roomId, player);
+    // Add to room and wait for completion
+    const success = await RoomManager.addPlayerToRoom(roomId, player);
+    if (!success) {
+      console.warn(`Failed to add player ${player.name} to room ${roomId}`);
+      return false;
+    }
+
+    // Get updated room data to ensure we have the latest player count
+    const updatedRoom = await RoomManager.getRoom(roomId);
+    if (updatedRoom) {
+      roomData.room = updatedRoom;
+    }
 
     // Remove from queue
     this.queue.delete(player.socketId);
@@ -354,15 +380,20 @@ export class MatchmakingQueue {
       this.playerTimers.delete(player.socketId);
     }
 
-    // Update room data
-    roomData.playerCount = room.players.length;
+    // Update room data with correct player count
+    roomData.playerCount = updatedRoom
+      ? updatedRoom.players.length
+      : room.players.length;
+    const currentPlayerCount = updatedRoom
+      ? updatedRoom.players.length
+      : room.players.length;
 
     // Notify player they joined the lobby
     if (this.io) {
       this.io.to(player.socketId).emit("lobbyJoined", {
         roomId,
-        message: `Joined lobby! ${room.players.length}/${this.MAX_PLAYERS_PER_ROOM} players ready.`,
-        playersCount: room.players.length,
+        message: `Joined lobby! ${currentPlayerCount}/${this.MAX_PLAYERS_PER_ROOM} players ready.`,
+        playersCount: currentPlayerCount,
         maxPlayers: this.MAX_PLAYERS_PER_ROOM,
         timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
         yourSeat: player.seat,
@@ -390,9 +421,19 @@ export class MatchmakingQueue {
    */
   static fillRoomWithBots(roomId) {
     const roomData = this.waitingRooms.get(roomId);
-    if (!roomData) return;
+    if (!roomData || !roomData.room) {
+      console.warn(
+        `Room ${roomId} not found or invalid when trying to fill with bots`
+      );
+      return;
+    }
 
     const room = roomData.room;
+    if (!room.players) {
+      console.warn(`Room ${roomId} has no players array`);
+      return;
+    }
+
     console.log(
       `Filling room ${roomId} with bots. Current players: ${room.players.length}`
     );
@@ -412,9 +453,17 @@ export class MatchmakingQueue {
    */
   static startGameFromWaitingRoom(roomId) {
     const roomData = this.waitingRooms.get(roomId);
-    if (!roomData) return;
+    if (!roomData || !roomData.room) {
+      console.warn(`Room ${roomId} not found or invalid when starting game`);
+      return;
+    }
 
     const room = roomData.room;
+    if (!room.players) {
+      console.warn(`Room ${roomId} has no players array when starting game`);
+      return;
+    }
+
     console.log(
       `Starting game in room ${roomId} with ${room.players.length} players`
     );

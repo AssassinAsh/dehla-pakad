@@ -23,18 +23,18 @@ export default function GameTable({
   onAddBot,
   isHost = false,
 }: GameTableProps) {
-  const isDealing = room.gameState.dealing;
+  const isDealing = room.gameState?.dealing || false;
 
   // Find the local player's seat
-  const currentPlayer = room.players.find((p) => p.id === currentPlayerId);
+  const currentPlayer = room.players?.find((p) => p.id === currentPlayerId);
   const mySeat = currentPlayer?.seat || 1;
 
   // Rotate seat order so local player is always at the bottom
   const seatOrder = [0, 1, 2, 3].map((i) => ((mySeat - 1 + i) % 4) + 1);
 
   // Calculate team scores
-  const team1Scores = room.gameState.scores.team1;
-  const team2Scores = room.gameState.scores.team2;
+  const team1Scores = room.gameState?.scores?.team1 || { tricks: 0, tens: 0 };
+  const team2Scores = room.gameState?.scores?.team2 || { tricks: 0, tens: 0 };
 
   // Helper to get suit color
   const getSuitColor = (suit: string) => {
@@ -104,7 +104,7 @@ export default function GameTable({
         </div>
 
         {/* Enhanced trump indicator moved higher and outside play area */}
-        {room.gameState.trump && (
+        {room.gameState?.trump && (
           <div className="absolute top-[8%] sm:top-[6%] right-[20%] sm:right-[18%] md:right-[22%] z-30 flex flex-col items-center">
             <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-900 border-3 border-yellow-400 shadow-xl rounded-full w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center backdrop-blur-sm">
               <span
@@ -122,7 +122,7 @@ export default function GameTable({
         )}
 
         {/* Enhanced Trump Card Display with better animation */}
-        {room.gameState.trump && room.gameState.trumpJustSet && (
+        {room.gameState?.trump && room.gameState?.trumpJustSet && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40">
             <div className="relative animate-in zoom-in-50 duration-700">
               <div className="bg-white p-2 rounded-xl border-4 border-yellow-500 shadow-2xl transform transition-all duration-700">
@@ -138,13 +138,13 @@ export default function GameTable({
                   <div className="p-6 flex flex-col items-center bg-white rounded-b-lg">
                     <span
                       className={`text-7xl sm:text-8xl font-black ${getSuitColor(
-                        room.gameState.trump
+                        room.gameState?.trump || "spades"
                       )}`}
                     >
-                      {getSuitSymbol(room.gameState.trump)}
+                      {getSuitSymbol(room.gameState?.trump || "spades")}
                     </span>
                     <span className="mt-3 text-base sm:text-lg font-bold text-gray-800 capitalize">
-                      {room.gameState.trump}
+                      {room.gameState?.trump}
                     </span>
                   </div>
                 </div>
@@ -199,9 +199,9 @@ export default function GameTable({
           <PlayArea room={room} mySeat={mySeat} />
 
           {/* Enhanced turn indicator with better visibility */}
-          {room.gameState.status === "in-progress" &&
+          {room.gameState?.status === "in-progress" &&
             room.currentPlayer === mySeat &&
-            room.currentTrick.length < 4 && (
+            room.currentTrick?.length < 4 && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
                 <div
                   className="bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-400 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full border-3 border-green-300 shadow-2xl animate-pulse font-bold text-base sm:text-lg flex items-center gap-2 sm:gap-3 backdrop-blur-sm"
@@ -250,7 +250,7 @@ export default function GameTable({
 
   // Helper to render a seat/avatar
   function renderSeat(seat: number) {
-    const player = room.players.find((p) => p.seat === seat);
+    const player = room.players?.find((p) => p.seat === seat);
     const isActive = room.currentPlayer === seat;
     const isMe = player && player.id === currentPlayerId;
     const isDealer = dealerSeat === seat;
@@ -374,7 +374,7 @@ export default function GameTable({
 
         {/* Take a Seat prompt for unseated users */}
         {!player &&
-          !room.players.some((p) => p.id === currentPlayerId) &&
+          !room.players?.some((p) => p.id === currentPlayerId) &&
           !isHost && (
             <span className="mt-1 text-[11px] font-bold text-yellow-300 animate-bounce pointer-events-none select-none">
               Take a Seat!

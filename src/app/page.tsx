@@ -131,22 +131,17 @@ export default function Home() {
       const socket = await lazySocket.getSocket();
       socketRef.current = socket;
 
-      // Use matchmaking system with quick-bots mode
-      socket.emit(
-        "joinMatchmaking",
-        playerName,
-        { mode: "quick-bots" },
-        (result: MatchResult) => {
-          if (result.status === "matched" && result.roomId) {
-            const roomUrl = `/room/${result.roomId}?name=${encodeURIComponent(
-              playerName
-            )}`;
-            router.push(roomUrl);
-          } else {
-            alert("Failed to create computer game");
-          }
+      // Use dedicated bot game creation (bypasses matchmaking queue)
+      socket.emit("createBotGame", playerName, (result: MatchResult) => {
+        if (result.status === "matched" && result.roomId) {
+          const roomUrl = `/room/${result.roomId}?name=${encodeURIComponent(
+            playerName
+          )}`;
+          router.push(roomUrl);
+        } else {
+          alert("Failed to create computer game");
         }
-      );
+      });
     } catch (error) {
       console.error("Error connecting for computer game:", error);
       alert("Connection error. Please try again.");

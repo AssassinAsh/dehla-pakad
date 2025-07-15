@@ -16,8 +16,8 @@ function emitRoomUpdate(roomId, io, delay = 50) {
   }
 
   // Set new timeout
-  const timeoutId = setTimeout(() => {
-    const room = RoomManager.getRoom(roomId);
+  const timeoutId = setTimeout(async () => {
+    const room = await RoomManager.getRoom(roomId);
     if (room) {
       io.to(roomId).emit("roomUpdated", room);
     }
@@ -118,7 +118,7 @@ export default function setupSocketIO(server) {
     );
 
     // Handle room creation
-    socket.on("createRoom", (playerName, callback) => {
+    socket.on("createRoom", async (playerName, callback) => {
       try {
         const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -131,10 +131,10 @@ export default function setupSocketIO(server) {
           isConnected: true,
         };
 
-        const room = RoomManager.createRoom(roomId, player);
+        const room = await RoomManager.createRoom(roomId, player);
 
         // Set as private room mode
-        RoomManager.setGameMode(roomId, "private");
+        await RoomManager.setGameMode(roomId, "private");
 
         socket.join(roomId);
 
@@ -159,10 +159,75 @@ export default function setupSocketIO(server) {
     });
 
     // Handle joining a room
-    socket.on("joinRoom", (roomId, playerName, seatNumber, callback) => {
+    socket.on("joinRoom", async (roomId, playerName, seatNumber, callback) => {
       try {
+        const room = await RoomManager.getRoom(roomId);
+        if (!room) {
+          callback(false);
+          return;
+        }
+
+        // Check if player already exists in room (reconnection case)
+        const existingPlayer = room.players.find((p) => p.name === playerName);
+
+        if (existingPlayer) {
+          // If player exists and is trying to select a seat
+          if (seatNumber !== null && existingPlayer.seat !== seatNumber) {
+            // Check if the new seat is available
+            const seatTaken = room.players.some(
+              (p) => p.seat === seatNumber && p.name !== playerName
+            );
+            if (seatTaken) {
+              callback(false);
+              return;
+            }
+
+            // Update existing player's seat
+            existingPlayer.seat = seatNumber;
+          }
+
+          // Update existing player's socket ID for reconnection
+          existingPlayer.id = socket.id;
+          existingPlayer.socketId = socket.id;
+          existingPlayer.isConnected = true;
+
+          // Save updated room
+          await RoomManager.updateRoom(roomId, room);
+
+          // Join socket to room and emit update
+          socket.join(roomId);
+          emitRoomUpdate(roomId, io);
+
+          callback(true);
+          return;
+        }
+
+        // New player joining - only allow if they specify a seat
+        if (seatNumber === null) {
+          // Just add them to the room without a seat (for room observation)
+          const player = {
+            id: socket.id,
+            socketId: socket.id,
+            name: playerName,
+            seat: null,
+            hand: [],
+            isReady: false,
+            isConnected: true,
+          };
+
+          room.players.push(player);
+          await RoomManager.updateRoom(roomId, room);
+
+          socket.join(roomId);
+          emitRoomUpdate(roomId, io);
+          callback(true);
+          return;
+        }
+
+        // New player joining with a specific seat
         const player = {
           id: socket.id,
+          socketId: socket.id,
           name: playerName,
           seat: seatNumber,
           hand: [],
@@ -170,10 +235,10 @@ export default function setupSocketIO(server) {
           isConnected: true,
         };
 
-        const success = RoomManager.addPlayerToRoom(roomId, player);
+        const success = await RoomManager.addPlayerToRoom(roomId, player);
         if (success) {
           socket.join(roomId);
-          emitRoomUpdate(roomId, io); // Use optimized emitter
+          emitRoomUpdate(roomId, io);
           callback(true);
         } else {
           callback(false);
@@ -186,8 +251,45 @@ export default function setupSocketIO(server) {
 
     // ========== MATCHMAKING SYSTEM ==========
 
-    // Handle joining matchmaking queue
-    socket.on("joinMatchmaking", (playerName, preferences, callback) => {
+    // Handle instant bot game creation (bypasses queue entirely)
+    socket.on("createBotGame", async (playerName, callback) => {
+      try {
+        const player = {
+          id: socket.id,
+          socketId: socket.id,
+          name: playerName,
+          hand: [],
+          isReady: false,
+          isConnected: true,
+          seat: 1, // Always assign to seat 1
+        };
+
+        // Create room directly without queue
+        const roomId = MatchmakingQueue.generateRoomId();
+        const room = await RoomManager.createRoom(roomId, player);
+
+        // Set game mode for quick-bots
+        await RoomManager.setGameMode(roomId, "quick-bots");
+
+        // Add bots to remaining seats
+        BotManager.addBotsToRoom(roomId, room, "medium");
+
+        // Make bots ready
+        BotManager.makeBotsReady(roomId);
+
+        if (typeof callback === "function") {
+          callback({ status: "matched", roomId, gameType: "quick-bots" });
+        }
+      } catch (error) {
+        console.error("Error creating bot game:", error);
+        if (typeof callback === "function") {
+          callback({ status: "error", message: "Failed to create bot game" });
+        }
+      }
+    });
+
+    // Handle joining matchmaking queue (for lobby games only)
+    socket.on("joinMatchmaking", async (playerName, preferences, callback) => {
       try {
         const player = {
           id: socket.id,
@@ -198,7 +300,10 @@ export default function setupSocketIO(server) {
           isConnected: true,
         };
 
-        const result = MatchmakingQueue.addPlayerToQueue(player, preferences);
+        const result = await MatchmakingQueue.addPlayerToQueue(
+          player,
+          preferences
+        );
 
         if (typeof callback === "function") {
           callback(result);
@@ -246,8 +351,8 @@ export default function setupSocketIO(server) {
     // ========== END MATCHMAKING ==========
 
     // Handle checking if a room exists
-    socket.on("checkRoom", (roomId, callback) => {
-      const room = RoomManager.getRoom(roomId);
+    socket.on("checkRoom", async (roomId, callback) => {
+      const room = await RoomManager.getRoom(roomId);
       const exists = !!room;
 
       if (exists) {
@@ -263,10 +368,10 @@ export default function setupSocketIO(server) {
     });
 
     // Handle playing a card
-    socket.on("playCard", (roomId, cardId, playerName) => {
+    socket.on("playCard", async (roomId, cardId, playerName) => {
       try {
-        const room = RoomManager.getRoom(roomId);
-        if (!room || room.gameState.status !== "in-progress") {
+        const room = await RoomManager.getRoom(roomId);
+        if (!room || room.gameState?.status !== "in-progress") {
           return socket.emit("error", "Cannot play card: game not in progress");
         }
 
@@ -314,21 +419,21 @@ export default function setupSocketIO(server) {
     // Handle starting the game
     socket.on("startGame", async (roomId) => {
       try {
-        const room = RoomManager.getRoom(roomId);
+        const room = await RoomManager.getRoom(roomId);
 
         // Only need 4 players who have all joined
         if (room && room.players.length === 4 && !room.gameStarted) {
           // Set or rotate dealer (clockwise for new rounds)
           if (!room.dealerSeat) {
             // First game: assign dealer to seat 1
-            RoomManager.setDealer(roomId, 1);
+            await RoomManager.setDealer(roomId, 1);
           } else {
             // Subsequent games: rotate dealer clockwise
-            RoomManager.rotateDealer(roomId);
+            await RoomManager.rotateDealer(roomId);
           }
 
           const dealerSeat = room.dealerSeat;
-          RoomManager.setDealing(roomId, true);
+          await RoomManager.setDealing(roomId, true);
 
           const deck = createDeck();
 
@@ -341,8 +446,8 @@ export default function setupSocketIO(server) {
           // Set current player to the one who got the first card (clockwise from dealer)
           room.currentPlayer = room.firstPlayerThisRound;
           room.deck = deck; // Store remaining deck
-          RoomManager.setDealing(roomId, false);
-          RoomManager.updateRoom(roomId, room);
+          await RoomManager.setDealing(roomId, false);
+          await RoomManager.updateRoomState(roomId, room);
 
           // Track game started metric
           metrics.incrementGamesStarted();
@@ -352,8 +457,9 @@ export default function setupSocketIO(server) {
           emitRoomUpdate(roomId, io);
 
           // Use unified turn handler for first player with a small delay
-          setTimeout(() => {
-            BotManager.handleTurn(roomId, RoomManager.getRoom(roomId), io);
+          setTimeout(async () => {
+            const currentRoom = await RoomManager.getRoom(roomId);
+            await BotManager.handleTurn(roomId, currentRoom, io);
           }, 1000);
         } else {
           socket.emit("error", "Cannot start game.");
@@ -366,25 +472,25 @@ export default function setupSocketIO(server) {
 
     // Handle player ready event
     socket.on("playerReady", async (roomId, playerName) => {
-      const set = RoomManager.setPlayerReady(roomId, playerName, true);
+      const set = await RoomManager.setPlayerReady(roomId, playerName, true);
       if (set) {
-        const room = RoomManager.getRoom(roomId);
+        const room = await RoomManager.getRoom(roomId);
         emitRoomUpdate(roomId, io);
 
-        if (RoomManager.areAllPlayersReady(roomId)) {
+        if (await RoomManager.areAllPlayersReady(roomId)) {
           // All ready, start the game automatically
           if (room && room.players.length === 4 && !room.gameStarted) {
             // Set or rotate dealer (clockwise for new rounds)
             if (!room.dealerSeat) {
               // First game: assign dealer to seat 1
-              RoomManager.setDealer(roomId, 1);
+              await RoomManager.setDealer(roomId, 1);
             } else {
               // Subsequent games: rotate dealer clockwise
-              RoomManager.rotateDealer(roomId);
+              await RoomManager.rotateDealer(roomId);
             }
 
             const dealerSeat = room.dealerSeat;
-            RoomManager.setDealing(roomId, true);
+            await RoomManager.setDealing(roomId, true);
             const deck = createDeck();
 
             // Use optimized dealing with proper dealer logic
@@ -405,8 +511,9 @@ export default function setupSocketIO(server) {
             emitRoomUpdate(roomId, io);
 
             // Use unified turn handler for first player with a small delay
-            setTimeout(() => {
-              BotManager.handleTurn(roomId, RoomManager.getRoom(roomId), io);
+            setTimeout(async () => {
+              const currentRoom = await RoomManager.getRoom(roomId);
+              await BotManager.handleTurn(roomId, currentRoom, io);
             }, 1000);
           }
         }
@@ -414,9 +521,9 @@ export default function setupSocketIO(server) {
     });
 
     // Handle adding a bot to a specific seat
-    socket.on("addBotToSeat", (roomId, seat, difficulty = "medium") => {
+    socket.on("addBotToSeat", async (roomId, seat, difficulty = "medium") => {
       try {
-        const room = RoomManager.getRoom(roomId);
+        const room = await RoomManager.getRoom(roomId);
         if (!room) {
           socket.emit("error", "Room not found");
           return;
@@ -442,9 +549,9 @@ export default function setupSocketIO(server) {
     });
 
     // Handle adding bots to room (for backward compatibility)
-    socket.on("addBots", (roomId, difficulty = "medium") => {
+    socket.on("addBots", async (roomId, difficulty = "medium") => {
       try {
-        const room = RoomManager.getRoom(roomId);
+        const room = await RoomManager.getRoom(roomId);
         if (!room) {
           socket.emit("error", "Room not found");
           return;
@@ -474,9 +581,9 @@ export default function setupSocketIO(server) {
     });
 
     // Handle player replay requests - Enhanced version
-    socket.on("playerReplay", (roomId) => {
+    socket.on("playerReplay", async (roomId) => {
       try {
-        const room = RoomManager.getRoom(roomId);
+        const room = await RoomManager.getRoom(roomId);
         if (!room) return;
 
         // Find player by socket.id
@@ -498,11 +605,11 @@ export default function setupSocketIO(server) {
     });
 
     // Handle leaving a room
-    socket.on("leaveRoom", (roomId) => {
-      const room = RoomManager.getRoom(roomId);
+    socket.on("leaveRoom", async (roomId) => {
+      const room = await RoomManager.getRoom(roomId);
       if (room) {
-        RoomManager.removePlayerFromRoom(roomId, socket.id);
-        const updatedRoom = RoomManager.getRoom(roomId);
+        await RoomManager.removePlayerFromRoom(roomId, socket.id);
+        const updatedRoom = await RoomManager.getRoom(roomId);
         if (updatedRoom) {
           emitRoomUpdate(roomId, io);
         }
@@ -523,14 +630,14 @@ export default function setupSocketIO(server) {
       MatchmakingQueue.cleanupDisconnectedPlayer(socket.id);
 
       // Give a grace period for reconnection, e.g., 5 seconds
-      setTimeout(() => {
-        const room = RoomManager.getRoomByPlayerId(socket.id);
+      setTimeout(async () => {
+        const room = await RoomManager.getRoomByPlayerId(socket.id);
         if (room) {
           // Check if the player has reconnected with a new socket ID
           const player = room.players.find((p) => p.id === socket.id);
           if (player && !player.isConnected) {
-            RoomManager.removePlayerFromRoom(room.id, socket.id);
-            const updatedRoom = RoomManager.getRoom(room.id);
+            await RoomManager.removePlayerFromRoom(room.id, socket.id);
+            const updatedRoom = await RoomManager.getRoom(room.id);
             if (updatedRoom) {
               emitRoomUpdate(room.id, io);
             }

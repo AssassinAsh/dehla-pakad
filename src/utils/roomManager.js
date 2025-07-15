@@ -1,11 +1,75 @@
-// In-memory storage for development (replace with database in production)
-const rooms = new Map();
-
+// Hybrid storage: Redis with in-memory fallback
+import dotenv from "dotenv";
 import { BotManager } from "./botManager.js";
 import metrics from "./metrics.js";
+import { RedisOperations, RedisKeys } from "./redisClient.js";
+
+// Load environment variables
+dotenv.config();
+
+// In-memory storage as fallback
+const rooms = new Map();
+
+// Redis operations instance
+const redisOps = {
+  async getRoom(roomId) {
+    const roomData = await RedisOperations.get(RedisKeys.room(roomId));
+    return RedisOperations.parseJSON(roomData);
+  },
+
+  async setRoom(roomId, room) {
+    return await RedisOperations.set(RedisKeys.room(roomId), room, {
+      ttl: 3600,
+    }); // 1 hour TTL
+  },
+
+  async deleteRoom(roomId) {
+    return await RedisOperations.del(RedisKeys.room(roomId));
+  },
+};
 
 export class RoomManager {
-  static createRoom(roomId, firstPlayer) {
+  // Helper method to serialize room data for storage
+  static serializeRoom(room) {
+    return {
+      ...room,
+      // Convert Sets to Arrays for JSON serialization
+      replayVotes: Array.from(room.replayVotes || []),
+      replayState: {
+        ...room.replayState,
+        votes: Array.from(room.replayState?.votes || []),
+      },
+    };
+  }
+
+  // Helper method to deserialize room data from storage
+  static deserializeRoom(roomData) {
+    if (!roomData) return null;
+
+    return {
+      ...roomData,
+      // Convert Arrays back to Sets
+      replayVotes: new Set(roomData.replayVotes || []),
+      replayState: {
+        ...roomData.replayState,
+        votes: new Set(roomData.replayState?.votes || []),
+      },
+    };
+  }
+
+  static async createRoom(roomId, firstPlayer) {
+    // Check if room exists in Redis first, then fallback to in-memory
+    let existingRoom = null;
+    try {
+      existingRoom = await redisOps.getRoom(roomId);
+    } catch (error) {
+      console.warn("Redis check failed, using in-memory:", error.message);
+    }
+
+    if (existingRoom || rooms.has(roomId)) {
+      throw new Error("Room already exists");
+    }
+
     const room = {
       id: roomId,
       players: [firstPlayer],
@@ -36,6 +100,16 @@ export class RoomManager {
       },
     };
 
+    // Store in both Redis and in-memory
+    try {
+      await redisOps.setRoom(roomId, this.serializeRoom(room));
+    } catch (error) {
+      console.warn(
+        "Redis storage failed, using in-memory only:",
+        error.message
+      );
+    }
+
     rooms.set(roomId, room);
 
     // Update metrics
@@ -44,20 +118,67 @@ export class RoomManager {
     return room;
   }
 
-  static getRoom(roomId) {
-    return rooms.get(roomId) || null;
+  static async getRoom(roomId) {
+    // Try to get room from in-memory first for performance
+    let room = rooms.get(roomId);
+
+    if (room) {
+      return room;
+    }
+
+    // If not in memory, try Redis
+    try {
+      const redisRoom = await redisOps.getRoom(roomId);
+      if (redisRoom) {
+        room = this.deserializeRoom(redisRoom);
+        // Cache in memory for future requests
+        rooms.set(roomId, room);
+        return room;
+      }
+    } catch (error) {
+      console.warn("Redis fetch failed, using in-memory only:", error.message);
+    }
+
+    return null;
   }
 
-  static addPlayerToRoom(roomId, player) {
-    const room = rooms.get(roomId);
+  // Update room in both Redis and memory
+  static async updateRoom(roomId, room) {
+    try {
+      await redisOps.setRoom(roomId, this.serializeRoom(room));
+    } catch (error) {
+      console.warn("Redis update failed, using in-memory only:", error.message);
+    }
+
+    rooms.set(roomId, room);
+    return room;
+  }
+
+  // Remove room from both Redis and memory
+  static async removeRoom(roomId) {
+    try {
+      await redisOps.deleteRoom(roomId);
+    } catch (error) {
+      console.warn("Redis deletion failed:", error.message);
+    }
+
+    const deleted = rooms.delete(roomId);
+    this.updateMetrics();
+    return deleted;
+  }
+
+  static async addPlayerToRoom(roomId, player) {
+    const room = await this.getRoom(roomId);
     if (!room || room.players.length >= 4) {
       return false;
     }
 
-    // Check if seat is already taken
-    const seatTaken = room.players.some((p) => p.seat === player.seat);
-    if (seatTaken) {
-      return false;
+    // Check if seat is already taken (only if player has a seat)
+    if (player.seat !== null) {
+      const seatTaken = room.players.some((p) => p.seat === player.seat);
+      if (seatTaken) {
+        return false;
+      }
     }
 
     // Prevent same user (by socket id) from taking multiple seats
@@ -67,7 +188,7 @@ export class RoomManager {
     }
 
     room.players.push(player);
-    rooms.set(roomId, room);
+    await this.updateRoom(roomId, room);
 
     // Update metrics
     this.updateMetrics();
@@ -75,8 +196,8 @@ export class RoomManager {
     return true;
   }
 
-  static removePlayerFromRoom(roomId, playerId) {
-    const room = rooms.get(roomId);
+  static async removePlayerFromRoom(roomId, playerId) {
+    const room = await this.getRoom(roomId);
     if (!room) {
       return false;
     }
@@ -93,7 +214,7 @@ export class RoomManager {
     if (room.players.length === 0) {
       // Clean up bots
       BotManager.cleanupRoom(roomId);
-      rooms.delete(roomId);
+      await this.removeRoom(roomId);
     } else {
       // If host left, transfer host to next player (by join order)
       if (isHostLeaving) {
@@ -108,7 +229,7 @@ export class RoomManager {
         room.dealerSeat = occupiedSeats[0]; // Assign to first available seat
       }
 
-      rooms.set(roomId, room);
+      await this.updateRoom(roomId, room);
     }
 
     // Update metrics
@@ -117,34 +238,38 @@ export class RoomManager {
     return true;
   }
 
-  static updateRoom(roomId, updates) {
-    const room = rooms.get(roomId);
+  static async updateRoomState(roomId, updates) {
+    const room = await this.getRoom(roomId);
     if (!room) {
       return false;
     }
 
     const updatedRoom = { ...room, ...updates };
-    rooms.set(roomId, updatedRoom);
+    await this.updateRoom(roomId, updatedRoom);
 
     return true;
   }
 
-  static isRoomFull(roomId) {
-    const room = rooms.get(roomId);
+  static async isRoomFull(roomId) {
+    const room = await this.getRoom(roomId);
     return room ? room.players.length >= 4 : false;
   }
 
-  static canStartGame(roomId) {
-    const room = rooms.get(roomId);
+  static async canStartGame(roomId) {
+    const room = await this.getRoom(roomId);
     return room ? room.players.length === 4 && !room.gameStarted : false;
   }
 
-  static getRoomByPlayerId(playerId) {
+  static async getRoomByPlayerId(playerId) {
+    // Since we can't easily search Redis by player ID, we'll check in-memory first
     for (const room of rooms.values()) {
       if (room.players.some((p) => p.id === playerId)) {
         return room;
       }
     }
+
+    // If not found in memory, this would require a more complex Redis implementation
+    // For now, return null as rooms should be cached in memory when active
     return null;
   }
 
@@ -157,16 +282,16 @@ export class RoomManager {
     }));
   }
 
-  static setDealer(roomId, seat) {
-    const room = rooms.get(roomId);
+  static async setDealer(roomId, seat) {
+    const room = await this.getRoom(roomId);
     if (room) {
       room.dealerSeat = seat;
-      rooms.set(roomId, room);
+      await this.updateRoom(roomId, room);
     }
   }
 
-  static rotateDealer(roomId) {
-    const room = rooms.get(roomId);
+  static async rotateDealer(roomId) {
+    const room = await this.getRoom(roomId);
     if (!room || room.players.length === 0) {
       return;
     }
@@ -191,63 +316,63 @@ export class RoomManager {
       }
     }
 
-    rooms.set(roomId, room);
+    await this.updateRoom(roomId, room);
   }
 
-  static setDealing(roomId, dealing) {
-    const room = rooms.get(roomId);
+  static async setDealing(roomId, dealing) {
+    const room = await this.getRoom(roomId);
     if (room) {
       room.gameState.dealing = dealing;
-      rooms.set(roomId, room);
+      await this.updateRoom(roomId, room);
     }
   }
 
-  static addReplayVote(roomId, playerName) {
-    const room = rooms.get(roomId);
+  static async addReplayVote(roomId, playerName) {
+    const room = await this.getRoom(roomId);
     if (room) {
       room.replayVotes.add(playerName);
-      rooms.set(roomId, room);
+      await this.updateRoom(roomId, room);
     }
   }
 
-  static clearReplayVotes(roomId) {
-    const room = rooms.get(roomId);
+  static async clearReplayVotes(roomId) {
+    const room = await this.getRoom(roomId);
     if (room) {
       room.replayVotes = new Set();
-      rooms.set(roomId, room);
+      await this.updateRoom(roomId, room);
     }
   }
 
-  static getReplayVotes(roomId) {
-    const room = rooms.get(roomId);
+  static async getReplayVotes(roomId) {
+    const room = await this.getRoom(roomId);
     return room ? room.replayVotes : new Set();
   }
 
-  static setPlayerReady(roomId, playerName, ready) {
-    const room = rooms.get(roomId);
+  static async setPlayerReady(roomId, playerName, ready) {
+    const room = await this.getRoom(roomId);
     if (room) {
       const player = room.players.find(
         (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
       );
       if (player) {
         player.isReady = ready;
-        rooms.set(roomId, room);
+        await this.updateRoom(roomId, room);
         return true;
       }
     }
     return false;
   }
 
-  static resetAllReady(roomId) {
-    const room = rooms.get(roomId);
+  static async resetAllReady(roomId) {
+    const room = await this.getRoom(roomId);
     if (room) {
       room.players.forEach((p) => (p.isReady = false));
-      rooms.set(roomId, room);
+      await this.updateRoom(roomId, room);
     }
   }
 
-  static areAllPlayersReady(roomId) {
-    const room = rooms.get(roomId);
+  static async areAllPlayersReady(roomId) {
+    const room = await this.getRoom(roomId);
     return (
       room && room.players.length === 4 && room.players.every((p) => p.isReady)
     );
@@ -284,8 +409,8 @@ export class RoomManager {
   }
 
   // Enhanced replay system for different game modes
-  static setGameMode(roomId, gameMode) {
-    const room = rooms.get(roomId);
+  static async setGameMode(roomId, gameMode) {
+    const room = await this.getRoom(roomId);
     if (room) {
       room.gameMode = gameMode;
       // Set voting requirements based on game mode
@@ -309,38 +434,39 @@ export class RoomManager {
             (p) => !p.isBot
           ).length;
       }
+      await this.updateRoom(roomId, room);
     }
   }
 
-  static getGameMode(roomId) {
-    const room = rooms.get(roomId);
+  static async getGameMode(roomId) {
+    const room = await this.getRoom(roomId);
     return room ? room.gameMode : "private";
   }
 
-  static handleReplayRequest(roomId, playerName, io) {
-    const room = rooms.get(roomId);
+  static async handleReplayRequest(roomId, playerName, io) {
+    const room = await this.getRoom(roomId);
     if (!room) return { success: false, message: "Room not found" };
 
     const gameMode = room.gameMode || "private";
 
     switch (gameMode) {
       case "quick-bots":
-        return this.handleQuickBotsReplay(roomId, io);
+        return await this.handleQuickBotsReplay(roomId, io);
 
       case "private":
-        return this.handlePrivateRoomReplay(roomId, playerName, io);
+        return await this.handlePrivateRoomReplay(roomId, playerName, io);
 
       case "lobby":
-        return this.handleLobbyReplay(roomId, playerName, io);
+        return await this.handleLobbyReplay(roomId, playerName, io);
 
       default:
-        return this.handleDefaultReplay(roomId, playerName, io);
+        return await this.handleDefaultReplay(roomId, playerName, io);
     }
   }
 
-  static handleQuickBotsReplay(roomId, io) {
+  static async handleQuickBotsReplay(roomId, io) {
     // Instant replay for single player vs bots
-    const success = this.resetGameState(roomId);
+    const success = await this.resetGameState(roomId);
     if (success) {
       io.to(roomId).emit("gameRestarted", {
         message: "Starting new game...",
@@ -351,8 +477,8 @@ export class RoomManager {
     return { success: false, message: "Failed to restart game" };
   }
 
-  static handlePrivateRoomReplay(roomId, playerName, io) {
-    const room = rooms.get(roomId);
+  static async handlePrivateRoomReplay(roomId, playerName, io) {
+    const room = await this.getRoom(roomId);
     if (!room) return { success: false, message: "Room not found" };
 
     // Only host can initiate replay in private rooms
@@ -404,7 +530,7 @@ export class RoomManager {
 
       // Clear the room after a short delay
       setTimeout(() => {
-        this.deleteRoom(roomId);
+        RoomManager.removeRoom(roomId);
       }, 3000);
 
       return { success: true, message: "Replay approved - joining new lobby" };
@@ -440,8 +566,8 @@ export class RoomManager {
     };
   }
 
-  static resetGameState(roomId) {
-    const room = rooms.get(roomId);
+  static async resetGameState(roomId) {
+    const room = await this.getRoom(roomId);
     if (!room) return false;
 
     try {
@@ -475,6 +601,9 @@ export class RoomManager {
         player.hand = [];
         player.isReady = room.gameMode === "quick-bots" ? true : false; // Auto-ready for bots
       });
+
+      // Update room in Redis
+      await this.updateRoom(roomId, room);
 
       return true;
     } catch (error) {

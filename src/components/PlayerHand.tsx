@@ -193,16 +193,17 @@ export default function PlayerHand({
       return a.suit.localeCompare(b.suit);
     });
     setSortedHand(sorted);
+  }, [hand]);
 
-    // Clear selection if selected card is no longer in hand
-    if (selectedCard && !sorted.some((card) => card.id === selectedCard)) {
+  // Clear selection if selected card is no longer in hand
+  useEffect(() => {
+    if (selectedCard && !hand.some((card) => card.id === selectedCard)) {
       setSelectedCard(null);
     }
   }, [hand, selectedCard]);
 
-  // This section is where we'd handle card selection if we needed to
+  // Clear selection if hand changes (like when a card is played)
   useEffect(() => {
-    // Clear selection if hand changes (like when a card is played)
     setSelectedCard(null);
   }, [hand.length]);
   return (

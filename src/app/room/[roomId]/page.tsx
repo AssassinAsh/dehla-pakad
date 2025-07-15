@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Room, Player, Card } from "@/types/game";
 import GameTable from "@/components/GameTable";
@@ -10,6 +10,7 @@ import PlayerHand from "@/components/PlayerHand";
 import Toast from "@/components/Toast"; // Import the new Toast component
 import ReplayModal from "@/components/ReplayModal";
 import SmartHeader from "@/components/SmartHeader";
+import { lazySocket } from "@/utils/lazySocket";
 
 import "@/styles/animations.css";
 import {
@@ -55,49 +56,92 @@ export default function RoomPage() {
 
   // Initialize Socket.IO client
   useEffect(() => {
-    const socket = io();
-    socketRef.current = socket;
+    const initSocket = async () => {
+      try {
+        // Use lazySocket for consistency
+        const socket = await lazySocket.getSocket();
+        socketRef.current = socket;
 
-    // Connection status for debugging
-    socket.on("connect", () => {
-      // Explicitly check if we're in a valid room once connected
-      if (roomId) {
-        socket.emit("checkRoom", roomId, (exists: boolean) => {
-          if (!exists) {
-            console.error("Room doesn't exist:", roomId);
-            // Use the toast for this error as well
-            setError(`Room ${roomId} doesn't exist or has been closed.`);
-            setTimeout(() => {
-              window.location.href = "/";
-            }, 3000);
+        // Remove any existing room-specific event listeners to avoid conflicts
+        socket.removeAllListeners("roomUpdated");
+        socket.removeAllListeners("error");
+
+        // If socket is already connected, immediately run the logic
+        if (socket.connected) {
+          handleConnectedSocket(socket);
+        } else {
+          // Only add connect listener if not already connected
+          socket.once("connect", () => {
+            handleConnectedSocket(socket);
+          });
+        }
+
+        function handleConnectedSocket(socket: Socket) {
+          // Explicitly check if we're in a valid room once connected
+          if (roomId) {
+            socket.emit("checkRoom", roomId, (exists: boolean) => {
+              if (!exists) {
+                console.error("Room doesn't exist:", roomId);
+                setError(`Room ${roomId} doesn't exist or has been closed.`);
+                setTimeout(() => {
+                  window.location.href = "/";
+                }, 3000);
+              } else {
+                // Room exists, try to join automatically if player has a name
+                if (playerName) {
+                  socket.emit(
+                    "joinRoom",
+                    roomId,
+                    playerName,
+                    null,
+                    (success: boolean) => {
+                      if (!success) {
+                        console.log(
+                          "Auto-join failed, player might need to select a seat"
+                        );
+                      }
+                    }
+                  );
+                }
+              }
+            });
+          }
+        }
+
+        socket.on("connect_error", (error: Error) => {
+          console.error("Socket.IO connection error:", error);
+          setError("Connection to server failed. Please refresh.");
+        });
+
+        // Listen for joinRoom callback errors
+        socket.on("error", (message: string) => {
+          setError(message);
+        });
+
+        // Join room for updates (server will add to socket.join on create/join events)
+        socket.on("roomUpdated", (updated: Room) => {
+          setRoom(updated);
+
+          // If we're already in the player list, update our current player
+          const me = updated.players?.find((p) => p.name === playerName);
+          if (me) {
+            setCurrentPlayer(me);
           }
         });
+      } catch (error) {
+        console.error("Failed to connect socket:", error);
+        setError("Failed to connect to server. Please refresh.");
       }
-    });
+    };
 
-    socket.on("connect_error", (error) => {
-      console.error("Socket.IO connection error:", error);
-      setError("Connection to server failed. Please refresh.");
-    });
-
-    // Listen for joinRoom callback errors
-    socket.on("error", (message) => {
-      setError(message);
-    });
-
-    // Join room for updates (server will add to socket.join on create/join events)
-    socket.on("roomUpdated", (updated: Room) => {
-      setRoom(updated);
-
-      // If we're already in the player list, update our current player
-      const me = updated.players.find((p) => p.name === playerName);
-      if (me) {
-        setCurrentPlayer(me);
-      }
-    });
+    initSocket();
 
     return () => {
-      socket.disconnect();
+      // Don't disconnect the socket entirely, just remove our listeners
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners("roomUpdated");
+        socketRef.current.removeAllListeners("error");
+      }
     };
   }, [roomId, playerName]);
 
@@ -354,39 +398,41 @@ export default function RoomPage() {
           />
 
           {/* Ready Button System - Centered in viewport */}
-          {!room.gameStarted && room.players.length === 4 && (
-            <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
-              <div className="flex flex-col items-center space-y-4 pointer-events-auto">
-                {!currentPlayer?.isReady ? (
-                  <button
-                    onClick={handleReady}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-500 hover:border-green-400 active:scale-95"
-                  >
-                    🎮 Ready to Play
-                  </button>
-                ) : (
-                  <div className="text-yellow-400 font-semibold text-lg bg-yellow-900/30 px-6 py-3 rounded-lg border border-yellow-500/50 shadow-md">
-                    ⏳ Waiting for others to get ready…
-                  </div>
-                )}
-                {/* Show which players are ready */}
-                <div className="flex flex-wrap gap-2 justify-center max-w-md bg-gray-900/50 p-4 rounded-lg border border-gray-700 shadow-md">
-                  {room.players.map((p) => (
-                    <span
-                      key={p.name}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
-                        p.isReady
-                          ? "bg-green-600 border-green-500 text-white"
-                          : "bg-gray-700 border-gray-600 text-gray-300"
-                      }`}
+          {!room.gameStarted &&
+            room.players.length === 4 &&
+            room.players.every((p) => p.seat !== null) && (
+              <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
+                <div className="flex flex-col items-center space-y-4 pointer-events-auto">
+                  {!currentPlayer?.isReady ? (
+                    <button
+                      onClick={handleReady}
+                      className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-500 hover:border-green-400 active:scale-95"
                     >
-                      {p.name} {p.isReady ? "✅" : "⏳"}
-                    </span>
-                  ))}
+                      🎮 Ready to Play
+                    </button>
+                  ) : (
+                    <div className="text-yellow-400 font-semibold text-lg bg-yellow-900/30 px-6 py-3 rounded-lg border border-yellow-500/50 shadow-md">
+                      ⏳ Waiting for others to get ready…
+                    </div>
+                  )}
+                  {/* Show which players are ready */}
+                  <div className="flex flex-wrap gap-2 justify-center max-w-md bg-gray-900/50 p-4 rounded-lg border border-gray-700 shadow-md">
+                    {room.players.map((p) => (
+                      <span
+                        key={p.name}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                          p.isReady
+                            ? "bg-green-600 border-green-500 text-white"
+                            : "bg-gray-700 border-gray-600 text-gray-300"
+                        }`}
+                      >
+                        {p.name} {p.isReady ? "✅" : "⏳"}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
         </main>
         {/* Player Hand (always at bottom, floating) */}
         {currentPlayer && (
