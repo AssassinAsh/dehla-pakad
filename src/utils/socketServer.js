@@ -93,7 +93,9 @@ export default function setupSocketIO(server) {
     socketConnections++;
     metrics.setSocketConnections(socketConnections);
 
-    console.log(`User connected: ${socket.id} (Total: ${socketConnections})`);
+    console.log(
+      `Socket connected for game/lobby: ${socket.id} (Total: ${socketConnections})`
+    );
 
     // Handle room creation
     socket.on("createRoom", (playerName, callback) => {
@@ -511,7 +513,7 @@ export default function setupSocketIO(server) {
       metrics.setSocketConnections(socketConnections);
 
       console.log(
-        `User disconnected: ${socket.id} (Total: ${socketConnections})`
+        `Socket disconnected from game/lobby: ${socket.id} (Total: ${socketConnections})`
       );
 
       // Clean up from matchmaking queue

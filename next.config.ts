@@ -4,13 +4,12 @@ import createPWA from "@ducanh2912/next-pwa";
 const withPWA = createPWA({
   dest: "public",
   register: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "development", // Only enable PWA in production
   fallbacks: {
     document: "/offline.html",
-    image: "",
-    audio: "",
-    video: "",
-    font: "",
+  },
+  workboxOptions: {
+    disableDevLogs: true,
   },
 });
 

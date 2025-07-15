@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import RulesModal from "@/components/RulesModal";
 import FeedbackModal from "@/components/FeedbackModal";
 import MatchmakingModal from "@/components/MatchmakingModal";
+import { lazySocket } from "@/utils/lazySocket";
 
 interface MatchResult {
   status: string;
@@ -28,33 +29,6 @@ export default function Home() {
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
 
-  // Connect to Socket.IO for real-time room updates
-  useEffect(() => {
-    const socket = io();
-    socketRef.current = socket;
-
-    // Connection status for debugging
-    socket.on("connect", () => {
-      // Connection established
-    });
-
-    socket.on("connect_error", (error) => {
-      console.error("Socket.IO connection error:", error);
-    });
-
-    // Listen for room list updates - currently logging only
-    socket.on("roomsList", () => {
-      // We're not displaying the rooms list at this time
-    });
-
-    // Request current rooms list
-    socket.emit("getRooms");
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
-
   const createRoom = async () => {
     if (!playerName.trim()) {
       alert("Please enter your name");
@@ -63,23 +37,18 @@ export default function Home() {
 
     setIsCreatingRoom(true);
 
-    if (!socketRef.current) {
-      console.error("Socket not connected");
-      alert("Connection error. Please refresh the page and try again.");
-      setIsCreatingRoom(false);
-      return;
-    }
+    try {
+      // Get socket connection only when needed
+      const socket = await lazySocket.getSocket();
+      socketRef.current = socket;
 
-    // Add a timeout to handle cases where the callback doesn't fire
-    const timeoutId = setTimeout(() => {
-      setIsCreatingRoom(false);
-      alert("Room creation timed out. Please try again.");
-    }, 5000);
+      // Add a timeout to handle cases where the callback doesn't fire
+      const timeoutId = setTimeout(() => {
+        setIsCreatingRoom(false);
+        alert("Room creation timed out. Please try again.");
+      }, 5000);
 
-    socketRef.current.emit(
-      "createRoom",
-      playerName,
-      (roomId: string | null) => {
+      socket.emit("createRoom", playerName, (roomId: string | null) => {
         clearTimeout(timeoutId);
 
         if (roomId) {
@@ -99,11 +68,15 @@ export default function Home() {
           alert("Failed to create room");
         }
         setIsCreatingRoom(false);
-      }
-    );
+      });
+    } catch (error) {
+      console.error("Error connecting to create room:", error);
+      alert("Connection error. Please try again.");
+      setIsCreatingRoom(false);
+    }
   };
 
-  const joinRoom = () => {
+  const joinRoom = async () => {
     if (!joinRoomId.trim()) {
       setJoinRoomError("Please enter a room ID");
       return;
@@ -114,63 +87,70 @@ export default function Home() {
       return;
     }
 
-    if (!socketRef.current) {
-      setJoinRoomError(
-        "Connection error. Please refresh the page and try again."
-      );
-      return;
-    }
+    try {
+      // Get socket connection only when needed
+      const socket = await lazySocket.getSocket();
+      socketRef.current = socket;
 
-    setJoinRoomError("");
-    setIsJoiningRoom(true);
-    const normalizedId = joinRoomId.trim().toUpperCase();
+      setJoinRoomError("");
+      setIsJoiningRoom(true);
+      const normalizedId = joinRoomId.trim().toUpperCase();
 
-    // Check if room exists before trying to join
-    socketRef.current.emit("checkRoom", normalizedId, (exists: boolean) => {
+      // Check if room exists before trying to join
+      socket.emit("checkRoom", normalizedId, (exists: boolean) => {
+        setIsJoiningRoom(false);
+
+        if (exists) {
+          // Room exists, navigate to it with player name
+          const roomUrl = `/room/${normalizedId}?name=${encodeURIComponent(
+            playerName
+          )}`;
+          router.push(roomUrl);
+        } else {
+          // Room doesn't exist
+          setJoinRoomError(
+            `Room "${normalizedId}" not found. Please check the room ID and try again.`
+          );
+        }
+      });
+    } catch (error) {
+      console.error("Error connecting to join room:", error);
+      setJoinRoomError("Connection error. Please try again.");
       setIsJoiningRoom(false);
-
-      if (exists) {
-        // Room exists, navigate to it with player name
-        const roomUrl = `/room/${normalizedId}?name=${encodeURIComponent(
-          playerName
-        )}`;
-        router.push(roomUrl);
-      } else {
-        // Room doesn't exist
-        setJoinRoomError(
-          `Room "${normalizedId}" not found. Please check the room ID and try again.`
-        );
-      }
-    });
+    }
   };
 
-  const playWithComputer = () => {
+  const playWithComputer = async () => {
     if (!playerName.trim()) {
       alert("Please enter your name");
       return;
     }
 
-    if (!socketRef.current) {
-      alert("Connection error. Please refresh the page and try again.");
-      return;
-    }
+    try {
+      // Get socket connection only when needed
+      const socket = await lazySocket.getSocket();
+      socketRef.current = socket;
 
-    // Use matchmaking system with quick-bots mode
-    socketRef.current.emit(
-      "joinMatchmaking",
-      playerName,
-      { mode: "quick-bots" },
-      (result: MatchResult) => {
-        if (result.status === "matched" && result.roomId) {
-          const roomUrl = `/room/${result.roomId}?name=${encodeURIComponent(
-            playerName
-          )}`;
-          router.push(roomUrl);
-        } else {
-          alert("Failed to create computer game");
+      // Use matchmaking system with quick-bots mode
+      socket.emit(
+        "joinMatchmaking",
+        playerName,
+        { mode: "quick-bots" },
+        (result: MatchResult) => {
+          if (result.status === "matched" && result.roomId) {
+            const roomUrl = `/room/${result.roomId}?name=${encodeURIComponent(
+              playerName
+            )}`;
+            router.push(roomUrl);
+          } else {
+            alert("Failed to create computer game");
+          }
         }
-      }
-    );
+      );
+    } catch (error) {
+      console.error("Error connecting for computer game:", error);
+      alert("Connection error. Please try again.");
+    }
   };
 
   const playOnline = () => {
@@ -396,7 +376,6 @@ export default function Home() {
       <MatchmakingModal
         isOpen={isMatchmakingModalOpen}
         onClose={() => setIsMatchmakingModalOpen(false)}
-        socket={socketRef.current}
         playerName={playerName}
       />
 
