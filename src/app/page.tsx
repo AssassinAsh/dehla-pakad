@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
@@ -16,21 +16,16 @@ interface MatchResult {
   message?: string;
 }
 
-export default function Home() {
-  const [playerName, setPlayerName] = useState("");
-  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
-  const [showPrivateRoomOptions, setShowPrivateRoomOptions] = useState(false);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
-  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
-  const [isMatchmakingModalOpen, setIsMatchmakingModalOpen] = useState(false);
-  const [joinRoomId, setJoinRoomId] = useState("");
-  const [joinRoomError, setJoinRoomError] = useState("");
-  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
-  const router = useRouter();
+// Component that handles search params with Suspense boundary
+function SearchParamsHandler({
+  setPlayerName,
+  setIsMatchmakingModalOpen,
+}: {
+  setPlayerName: (name: string) => void;
+  setIsMatchmakingModalOpen: (open: boolean) => void;
+}) {
   const searchParams = useSearchParams();
 
-  // Auto-open matchmaking modal if coming from lobby replay
   useEffect(() => {
     const autoJoinLobby = searchParams.get("joinLobby");
     const nameFromUrl = searchParams.get("name");
@@ -49,7 +44,23 @@ export default function Home() {
       newUrl.searchParams.delete("name");
       window.history.replaceState({}, "", newUrl.toString());
     }
-  }, [searchParams]);
+  }, [searchParams, setPlayerName, setIsMatchmakingModalOpen]);
+
+  return null;
+}
+
+export default function Home() {
+  const [playerName, setPlayerName] = useState("");
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [showPrivateRoomOptions, setShowPrivateRoomOptions] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isMatchmakingModalOpen, setIsMatchmakingModalOpen] = useState(false);
+  const [joinRoomId, setJoinRoomId] = useState("");
+  const [joinRoomError, setJoinRoomError] = useState("");
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const router = useRouter();
 
   const createRoom = async () => {
     if (!playerName.trim()) {
@@ -182,6 +193,14 @@ export default function Home() {
 
   return (
     <>
+      {/* Handle search params with Suspense boundary */}
+      <Suspense fallback={null}>
+        <SearchParamsHandler
+          setPlayerName={setPlayerName}
+          setIsMatchmakingModalOpen={setIsMatchmakingModalOpen}
+        />
+      </Suspense>
+
       <main className="flex min-h-screen flex-col md:flex-row items-center justify-center p-4 md:p-12 lg:p-16 bg-[#f6e7c6] text-green-950 relative">
         {/* Game-like background overlay */}
         <div className="fixed inset-0 -z-10 bg-gradient-to-br from-green-200 via-green-100 to-yellow-100">
