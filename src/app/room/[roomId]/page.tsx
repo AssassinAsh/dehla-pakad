@@ -71,34 +71,60 @@ export default function RoomPage() {
   // Initialize Socket.IO client
   useEffect(() => {
     const initSocket = async () => {
+      console.log("🚀 Room page: Initializing socket connection...");
       try {
         // Use lazySocket for consistency
-        const socket = await lazySocket.getSocket();
-        socketRef.current = socket;
+        const newSocket = await lazySocket.getSocket();
+        console.log("✅ Room page: Got socket from lazySocket", {
+          socketId: newSocket.id,
+          connected: newSocket.connected,
+          transport: newSocket.io.engine?.transport?.name,
+        });
+
+        socketRef.current = newSocket;
 
         // Remove any existing room-specific event listeners to avoid conflicts
-        socket.removeAllListeners("roomUpdated");
-        socket.removeAllListeners("error");
-        socket.removeAllListeners("gameRestarted");
-        socket.removeAllListeners("replayRequestReceived");
-        socket.removeAllListeners("replayApproved");
-        socket.removeAllListeners("replayResponse");
-        socket.removeAllListeners("hostLeft");
+        newSocket.removeAllListeners("roomUpdated");
+        newSocket.removeAllListeners("error");
+        newSocket.removeAllListeners("gameRestarted");
+        newSocket.removeAllListeners("replayRequestReceived");
+        newSocket.removeAllListeners("replayApproved");
+        newSocket.removeAllListeners("replayResponse");
+        newSocket.removeAllListeners("hostLeft");
+        newSocket.removeAllListeners("gameEvent"); // Phase 1: Add game event cleanup
 
         // If socket is already connected, immediately run the logic
-        if (socket.connected) {
-          handleConnectedSocket(socket);
+        if (newSocket.connected) {
+          console.log(
+            "🔄 Room page: Socket already connected, handling immediately"
+          );
+          handleConnectedSocket(newSocket);
         } else {
+          console.log(
+            "⏳ Room page: Socket not connected, waiting for connect event"
+          );
           // Only add connect listener if not already connected
-          socket.once("connect", () => {
-            handleConnectedSocket(socket);
+          newSocket.once("connect", () => {
+            console.log("✅ Room page: Socket connected event received");
+            handleConnectedSocket(newSocket);
           });
         }
 
         function handleConnectedSocket(socket: Socket) {
+          console.log("🎯 Room page: handleConnectedSocket called", {
+            socketId: socket.id,
+            roomId,
+            playerName,
+            connected: socket.connected,
+          });
+
           // Explicitly check if we're in a valid room once connected
           if (roomId) {
             socket.emit("checkRoom", roomId, (exists: boolean) => {
+              console.log("🏠 Room page: checkRoom response", {
+                roomId,
+                exists,
+              });
               if (!exists) {
                 console.error("Room doesn't exist:", roomId);
                 showError(`Room ${roomId} doesn't exist or has been closed.`);
@@ -108,12 +134,19 @@ export default function RoomPage() {
               } else {
                 // Room exists, try to join automatically if player has a name
                 if (playerName) {
+                  console.log("👤 Room page: Attempting auto-join", {
+                    playerName,
+                    roomId,
+                  });
                   socket.emit(
                     "joinRoom",
                     roomId,
                     playerName,
                     null,
                     (success: boolean) => {
+                      console.log("🚪 Room page: joinRoom response", {
+                        success,
+                      });
                       if (!success) {
                         console.log(
                           "Auto-join failed, player might need to select a seat"
@@ -127,18 +160,18 @@ export default function RoomPage() {
           }
         }
 
-        socket.on("connect_error", (error: Error) => {
+        newSocket.on("connect_error", (error: Error) => {
           console.error("Socket.IO connection error:", error);
           showError("Connection to server failed. Please refresh.");
         });
 
         // Listen for joinRoom callback errors
-        socket.on("error", (message: string) => {
+        newSocket.on("error", (message: string) => {
           showError(message);
         });
 
         // Join room for updates (server will add to socket.join on create/join events)
-        socket.on("roomUpdated", (updated: Room) => {
+        newSocket.on("roomUpdated", (updated: Room) => {
           setRoom(updated);
 
           // If we're already in the player list, update our current player
@@ -148,14 +181,20 @@ export default function RoomPage() {
           }
         });
 
+        // Phase 1: Game Event Listener (silent event processing)
+        newSocket.on("gameEvent", () => {
+          // Events are processed silently - future phases will use these for UI updates
+          // Available events: cardPlayed, trumpSet, trickCompleted, etc.
+        });
+
         // Handle replay events
-        socket.on("gameRestarted", () => {
+        newSocket.on("gameRestarted", () => {
           setError(null);
           setShowReplayModal(false);
           setEndgameResult(null);
         });
 
-        socket.on(
+        newSocket.on(
           "replayRequestReceived",
           (data: { requester: string; message: string }) => {
             // Show info notification that someone requested a replay
@@ -163,7 +202,7 @@ export default function RoomPage() {
           }
         );
 
-        socket.on(
+        newSocket.on(
           "replayApproved",
           (data: { message: string; mode: string }) => {
             if (data.mode === "lobby") {
@@ -176,7 +215,7 @@ export default function RoomPage() {
           }
         );
 
-        socket.on(
+        newSocket.on(
           "replayResponse",
           (response: {
             success: boolean;
@@ -210,7 +249,7 @@ export default function RoomPage() {
         );
 
         // Handle admin/host leaving
-        socket.on("hostLeft", (data: { message: string }) => {
+        newSocket.on("hostLeft", (data: { message: string }) => {
           showError(data.message);
           setTimeout(() => {
             window.location.href = "/";
@@ -234,35 +273,41 @@ export default function RoomPage() {
         socketRef.current.removeAllListeners("replayApproved");
         socketRef.current.removeAllListeners("replayResponse");
         socketRef.current.removeAllListeners("hostLeft");
+        socketRef.current.removeAllListeners("gameEvent"); // Phase 1: Cleanup game events
       }
     };
-  }, [roomId, playerName, currentPlayer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, playerName]); // Removed currentPlayer to prevent infinite loop
 
-  const joinSeat = (seatNumber: number) => {
+  const joinSeat = async (seatNumber: number) => {
     if (!playerName || !room || !socketRef.current) return;
-
-    // Check if seat is available
-    const seatTaken = room.players.some((p) => p.seat === seatNumber);
-    if (seatTaken) return;
 
     socketRef.current.emit(
       "joinRoom",
-      room.id,
+      roomId,
       playerName,
       seatNumber,
-      () => {}
+      (success: boolean) => {
+        if (!success) {
+          showError("Failed to join seat. Please try again.");
+        }
+      }
     );
   };
 
-  const playCard = (card: Card) => {
+  // Play a card
+  const playCard = async (card: Card) => {
     if (!currentPlayer || !room || !socketRef.current) {
       return;
     }
+
+    // Basic validation
     if (room.currentPlayer !== currentPlayer.seat) {
+      showError("It's not your turn!");
       return;
     }
-    // Send to server with playerName for identification
-    socketRef.current.emit("playCard", room.id, card.id, playerName);
+
+    socketRef.current.emit("playCard", roomId, card.id, playerName);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {

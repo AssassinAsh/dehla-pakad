@@ -46,6 +46,7 @@ export class RoomManager {
   static deserializeRoom(roomData) {
     if (!roomData) return null;
 
+    // Handle legacy full rooms
     return {
       ...roomData,
       // Convert Arrays back to Sets
@@ -110,6 +111,7 @@ export class RoomManager {
       );
     }
 
+    // Keep full room in memory
     rooms.set(roomId, room);
 
     // Update metrics
@@ -150,6 +152,7 @@ export class RoomManager {
       console.warn("Redis update failed, using in-memory only:", error.message);
     }
 
+    // Keep full room in memory for immediate access
     rooms.set(roomId, room);
     return room;
   }

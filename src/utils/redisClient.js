@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { createClient } from "redis";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -11,8 +11,9 @@ let redis = null;
 export function initializeRedis() {
   try {
     if (
-      !process.env.UPSTASH_REDIS_REST_URL ||
-      !process.env.UPSTASH_REDIS_REST_TOKEN
+      !process.env.REDIS_HOST ||
+      !process.env.REDIS_PORT ||
+      !process.env.REDIS_PASSWORD
     ) {
       console.warn(
         "Redis environment variables not found, falling back to in-memory storage"
@@ -20,12 +21,30 @@ export function initializeRedis() {
       return null;
     }
 
-    redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    redis = createClient({
+      username: process.env.REDIS_USERNAME || "default",
+      password: process.env.REDIS_PASSWORD,
+      socket: {
+        host: process.env.REDIS_HOST,
+        port: parseInt(process.env.REDIS_PORT, 10),
+      },
     });
 
-    console.log("✅ Redis client initialized successfully");
+    // Handle Redis client errors
+    redis.on("error", (err) => {
+      console.error("❌ Redis Client Error:", err);
+    });
+
+    // Connect to Redis
+    redis
+      .connect()
+      .then(() => {
+        console.log("✅ Redis client connected successfully");
+      })
+      .catch((error) => {
+        console.error("❌ Failed to connect to Redis:", error);
+      });
+
     return redis;
   } catch (error) {
     console.error("❌ Failed to initialize Redis client:", error);
@@ -132,7 +151,7 @@ class RedisOperations {
         typeof value === "object" ? JSON.stringify(value) : value;
 
       if (options.ttl) {
-        await client.setex(key, options.ttl, serializedValue);
+        await client.setEx(key, options.ttl, serializedValue);
       } else {
         await client.set(key, serializedValue);
       }
@@ -227,51 +246,96 @@ class RedisOperations {
 
   static async sadd(key, ...members) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return false;
+    }
+
     if (!client) return false;
 
     try {
-      await client.sadd(key, ...members);
+      await client.sAdd(key, members);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
       return true;
     } catch (error) {
-      console.error(`Redis SADD error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return false;
     }
   }
 
   static async srem(key, ...members) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return false;
+    }
+
     if (!client) return false;
 
     try {
-      await client.srem(key, ...members);
+      await client.sRem(key, members);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
       return true;
     } catch (error) {
-      console.error(`Redis SREM error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return false;
     }
   }
 
   static async smembers(key) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return [];
+    }
+
     if (!client) return [];
 
     try {
-      return await client.smembers(key);
+      const result = await client.sMembers(key);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
+      return result;
     } catch (error) {
-      console.error(`Redis SMEMBERS error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return [];
     }
   }
 
   static async expire(key, ttl) {
     const client = getRedisClient();
+
+    // Circuit breaker check
+    if (errorTracking.isCircuitOpen) {
+      return false;
+    }
+
     if (!client) return false;
 
     try {
       await client.expire(key, ttl);
+
+      // Reset error tracking on success
+      errorTracking.consecutiveErrors = 0;
+      errorTracking.isCircuitOpen = false;
+
       return true;
     } catch (error) {
-      console.error(`Redis EXPIRE error for key ${key}:`, error);
+      this.handleRedisError(key, error);
       return false;
     }
   }

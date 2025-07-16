@@ -166,6 +166,7 @@ export default function GameTable({
                   alt="Deck"
                   width={72}
                   height={100}
+                  style={{ width: "auto", height: "auto" }}
                   className="rounded-lg shadow-lg"
                 />
               </div>
@@ -175,6 +176,7 @@ export default function GameTable({
                   alt="Deck"
                   width={72}
                   height={100}
+                  style={{ width: "auto", height: "auto" }}
                   className="rounded-lg shadow-lg"
                 />
               </div>
@@ -183,6 +185,7 @@ export default function GameTable({
                 alt="Deck"
                 width={72}
                 height={100}
+                style={{ width: "auto", height: "auto" }}
                 className="rounded-lg drop-shadow-2xl animate-bounce relative z-10"
               />
             </div>
@@ -374,7 +377,9 @@ export default function GameTable({
 
         {/* Take a Seat prompt for unseated users */}
         {!player &&
-          !room.players?.some((p) => p.id === currentPlayerId) &&
+          !room.players?.some(
+            (p) => p.id === currentPlayerId && p.seat !== null
+          ) &&
           !isHost && (
             <span className="mt-1 text-[11px] font-bold text-yellow-300 animate-bounce pointer-events-none select-none">
               Take a Seat!

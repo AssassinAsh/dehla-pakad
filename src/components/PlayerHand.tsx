@@ -200,7 +200,8 @@ export default function PlayerHand({
     if (selectedCard && !hand.some((card) => card.id === selectedCard)) {
       setSelectedCard(null);
     }
-  }, [hand, selectedCard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hand]); // Only depend on hand changes to avoid infinite loop
   return (
     <div className="fixed bottom-0 left-0 right-0 flex justify-center h-32 sm:h-40 md:h-48 z-50 pointer-events-none px-2 sm:px-4 md:px-8">
       {/* Transparent background to not hide the table */}

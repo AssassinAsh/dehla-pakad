@@ -3,6 +3,7 @@ import { RoomManager } from "./roomManager.js";
 import { createDeck } from "./gameLogic.js";
 import { BotManager } from "./botManager.js";
 import { MatchmakingQueue } from "./matchmakingQueue.js";
+import { GameEventManager, GameEventTypes } from "./gameEventManager.js";
 import metrics from "./metrics.js";
 
 // Debounce map for room updates
@@ -52,7 +53,23 @@ function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
         dealingOrder.forEach((seat) => {
           const player = room.players.find((p) => p.seat === seat);
           if (player && deck.length > 0) {
-            player.hand.push(deck.shift());
+            const dealtCard = deck.shift();
+            player.hand.push(dealtCard);
+
+            // Emit card dealt event for Phase 3 reconstruction
+            GameEventManager.emitToRoom(
+              io,
+              roomId,
+              GameEventTypes.CARDS_DEALT_INITIAL,
+              {
+                playerId: player.id,
+                playerSeat: player.seat,
+                playerName: player.name,
+                cards: [dealtCard], // Single card per emission
+                dealingRound: dealIndex + 1,
+                totalCardsDealt: player.hand.length,
+              }
+            );
           }
         });
 
@@ -163,7 +180,7 @@ export default function setupSocketIO(server) {
       try {
         const room = await RoomManager.getRoom(roomId);
         if (!room) {
-          callback(false);
+          if (typeof callback === "function") callback(false);
           return;
         }
 
@@ -178,7 +195,7 @@ export default function setupSocketIO(server) {
               (p) => p.seat === seatNumber && p.name !== playerName
             );
             if (seatTaken) {
-              callback(false);
+              if (typeof callback === "function") callback(false);
               return;
             }
 
@@ -198,7 +215,7 @@ export default function setupSocketIO(server) {
           socket.join(roomId);
           emitRoomUpdate(roomId, io);
 
-          callback(true);
+          if (typeof callback === "function") callback(true);
           return;
         }
 
@@ -218,9 +235,23 @@ export default function setupSocketIO(server) {
           room.players.push(player);
           await RoomManager.updateRoom(roomId, room);
 
+          // Emit player joined event
+          GameEventManager.emitToRoom(
+            io,
+            roomId,
+            GameEventTypes.PLAYER_JOINED,
+            {
+              playerId: player.id,
+              playerName: player.name,
+              seat: player.seat,
+              totalPlayers: room.players.length,
+              isRoomFull: room.players.length === 4,
+            }
+          );
+
           socket.join(roomId);
           emitRoomUpdate(roomId, io);
-          callback(true);
+          if (typeof callback === "function") callback(true);
           return;
         }
 
@@ -237,15 +268,29 @@ export default function setupSocketIO(server) {
 
         const success = await RoomManager.addPlayerToRoom(roomId, player);
         if (success) {
+          // Emit player joined event
+          GameEventManager.emitToRoom(
+            io,
+            roomId,
+            GameEventTypes.PLAYER_JOINED,
+            {
+              playerId: player.id,
+              playerName: player.name,
+              seat: player.seat,
+              totalPlayers: 1, // Will be updated by room update
+              isRoomFull: false, // Will be determined by room manager
+            }
+          );
+
           socket.join(roomId);
           emitRoomUpdate(roomId, io);
-          callback(true);
+          if (typeof callback === "function") callback(true);
         } else {
-          callback(false);
+          if (typeof callback === "function") callback(false);
         }
       } catch (error) {
         console.error("Error joining room:", error);
-        callback(false);
+        if (typeof callback === "function") callback(false);
       }
     });
 
@@ -368,15 +413,38 @@ export default function setupSocketIO(server) {
     });
 
     // Handle playing a card
-    socket.on("playCard", async (roomId, cardId, playerName) => {
+    socket.on("playCard", async (data, cardId, playerName) => {
+      // Handle both old format (separate params) and new format (object)
+      let roomId, actualCardId, actualPlayerName, actionId;
+
+      if (typeof data === "object" && data.roomId) {
+        // New format: { roomId, cardId, actionId }
+        roomId = data.roomId;
+        actualCardId = data.cardId;
+        actionId = data.actionId;
+        // Need to find player name from socket/room
+      } else {
+        // Old format: (roomId, cardId, playerName)
+        roomId = data;
+        actualCardId = cardId;
+        actualPlayerName = playerName;
+      }
+
       try {
         const room = await RoomManager.getRoom(roomId);
         if (!room || room.gameState?.status !== "in-progress") {
           return socket.emit("error", "Cannot play card: game not in progress");
         }
 
-        // Find player by name, as socket.id can change on reconnect
-        const player = room.players.find((p) => p.name === playerName);
+        // Find player - first try by name, then by socket ID
+        let player;
+        if (actualPlayerName) {
+          player = room.players.find((p) => p.name === actualPlayerName);
+        } else {
+          // For new format, find by socket ID
+          player = room.players.find((p) => p.id === socket.id);
+        }
+
         if (!player) {
           return socket.emit("error", "Player not found.");
         }
@@ -390,7 +458,7 @@ export default function setupSocketIO(server) {
           return socket.emit("error", "It's not your turn.");
         }
 
-        const cardIndex = player.hand.findIndex((c) => c.id === cardId);
+        const cardIndex = player.hand.findIndex((c) => c.id === actualCardId);
         if (cardIndex === -1) {
           return socket.emit("error", "Invalid card played.");
         }
@@ -400,16 +468,42 @@ export default function setupSocketIO(server) {
         // Track card play metric
         metrics.incrementCardPlays();
 
+        // Emit card played event
+        GameEventManager.emitToRoom(io, roomId, GameEventTypes.CARD_PLAYED, {
+          playerId: player.id,
+          playerSeat: player.seat,
+          playerName: player.name,
+          cardId: playedCard.id,
+          cardSuit: playedCard.suit,
+          cardRank: playedCard.rank,
+          trickPosition: room.currentTrick.length + 1,
+        });
+
         // Use the shared card play logic from BotManager
-        BotManager.processCardPlay(
-          room,
-          player,
-          playedCard,
-          cardIndex,
-          roomId,
-          io,
-          socket
-        );
+        try {
+          BotManager.processCardPlay(
+            room,
+            player,
+            playedCard,
+            cardIndex,
+            roomId,
+            io,
+            socket
+          );
+
+          // Send success response to client for Phase 4 validation (only if no error was thrown)
+          socket.emit("cardPlayResult", {
+            success: true,
+            actionId: actionId,
+            message: "Card played successfully",
+          });
+        } catch (cardPlayError) {
+          socket.emit("cardPlayResult", {
+            success: false,
+            actionId: actionId,
+            message: cardPlayError.message || "Card play failed",
+          });
+        }
       } catch (error) {
         console.error("Error playing card:", error);
         socket.emit("error", "Error playing card");
@@ -454,6 +548,18 @@ export default function setupSocketIO(server) {
 
           // Track game started metric
           metrics.incrementGamesStarted();
+
+          // Emit game started event
+          GameEventManager.emitToRoom(io, roomId, GameEventTypes.GAME_STARTED, {
+            dealerSeat: room.dealerSeat,
+            firstPlayer: room.firstPlayerThisRound,
+            gameMode: room.gameMode,
+            players: room.players.map((p) => ({
+              seat: p.seat,
+              name: p.name,
+              id: p.id,
+            })),
+          });
 
           // Single emission for game start
           io.to(roomId).emit("gameStarted", room);
@@ -619,6 +725,17 @@ export default function setupSocketIO(server) {
         const leavingPlayer = room.players.find((p) => p.id === socket.id);
         const isHost = leavingPlayer && room.host === leavingPlayer.name;
 
+        // Emit player left event before removal
+        if (leavingPlayer) {
+          GameEventManager.emitToRoom(io, roomId, GameEventTypes.PLAYER_LEFT, {
+            playerId: leavingPlayer.id,
+            playerName: leavingPlayer.name,
+            seat: leavingPlayer.seat,
+            isHost: isHost,
+            reason: "voluntaryLeave",
+          });
+        }
+
         await RoomManager.removePlayerFromRoom(roomId, socket.id);
         const updatedRoom = await RoomManager.getRoom(roomId);
 
@@ -660,6 +777,20 @@ export default function setupSocketIO(server) {
           const player = room.players.find((p) => p.id === socket.id);
           if (player && !player.isConnected) {
             const isHost = room.host === player.name;
+
+            // Emit player left event before removal (disconnect timeout)
+            GameEventManager.emitToRoom(
+              io,
+              room.id,
+              GameEventTypes.PLAYER_LEFT,
+              {
+                playerId: player.id,
+                playerName: player.name,
+                seat: player.seat,
+                isHost: isHost,
+                reason: "disconnectTimeout",
+              }
+            );
 
             await RoomManager.removePlayerFromRoom(room.id, socket.id);
             const updatedRoom = await RoomManager.getRoom(room.id);

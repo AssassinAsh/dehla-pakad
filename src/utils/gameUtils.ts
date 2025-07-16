@@ -97,6 +97,11 @@ export function dealCards(deck: Card[]): Card[][] {
 
 // Get card display name
 export function getCardDisplayName(card: Card): string {
+  // Add validation for undefined/null values
+  if (!card || !card.rank || !card.suit) {
+    return "back"; // Return card back filename for invalid cards
+  }
+
   const suitLetters = {
     hearts: "H",
     diamonds: "D",
@@ -104,7 +109,14 @@ export function getCardDisplayName(card: Card): string {
     spades: "S",
   };
 
-  return `${card.rank}${suitLetters[card.suit]}`;
+  const suitLetter = suitLetters[card.suit as keyof typeof suitLetters];
+
+  // Double-check that we have valid values
+  if (!suitLetter) {
+    return "back";
+  }
+
+  return `${card.rank}${suitLetter}`;
 }
 
 // Get card color for styling

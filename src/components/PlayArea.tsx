@@ -166,6 +166,7 @@ export default function PlayArea({ room, mySeat }: PlayAreaProps) {
                   width={64}
                   height={90}
                   className="rounded-md object-cover"
+                  style={{ width: "auto", height: "auto" }}
                   priority={isLatest}
                 />
 

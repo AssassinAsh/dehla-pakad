@@ -214,6 +214,7 @@ export default function Home() {
               alt="Dehla Pakad Logo"
               width={120}
               height={120}
+              style={{ width: "auto", height: "auto" }}
               priority
               className="w-24 h-24 sm:w-36 sm:h-36 md:w-56 md:h-56"
             />

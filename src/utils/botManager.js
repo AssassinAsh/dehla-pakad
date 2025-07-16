@@ -2,6 +2,7 @@ import { BotEngine } from "./botEngine.js";
 import { RoomManager } from "./roomManager.js";
 import { determineTrickWinner } from "./gameLogic.js";
 import metrics from "./metrics.js";
+import { GameEventManager, GameEventTypes } from "./gameEventManager.js"; // Phase 1: Event system
 
 export class BotManager {
   static botPlayers = new Map(); // Track bot players by room
@@ -402,13 +403,10 @@ export class BotManager {
         // Check if player has cards of the lead suit
         const hasLeadSuit = player.hand.some((card) => card.suit === leadSuit);
         if (hasLeadSuit) {
-          // Invalid play for humans - send error. For bots, this shouldn't happen
+          // Invalid play for humans - throw error to be caught by caller
           if (socket) {
             player.isPlaying = false; // Clear flag on error
-            return socket.emit(
-              "error",
-              `You must follow the suit: ${leadSuit}`
-            );
+            throw new Error(`You must follow the suit: ${leadSuit}`);
           } else {
             console.error(
               `Bot ${player.name} tried to play invalid card - must follow suit ${leadSuit}`
@@ -422,6 +420,15 @@ export class BotManager {
             room.gameState.trump = playedCard.suit;
             room.gameState.trumpJustSet = true; // For animation
             room.trumpSetThisTrick = true; // Track for dealing logic
+
+            // Phase 1: Emit trump set event (alongside existing logic)
+            GameEventManager.emitToRoom(io, roomId, GameEventTypes.TRUMP_SET, {
+              trumpSuit: playedCard.suit,
+              setByPlayer: player.seat,
+              setByPlayerName: player.name,
+              triggerCard: playedCard.id,
+              trickNumber: room.gameState.totalTricksCompleted + 1,
+            });
 
             // Show the trump announcement for 2 seconds, then clear flag
             setTimeout(() => {
@@ -497,6 +504,17 @@ export class BotManager {
       cards: [...room.currentTrick],
     };
 
+    // Emit trick completion event
+    GameEventManager.emitToRoom(io, roomId, "TRICK_COMPLETED", {
+      trickNumber: room.gameState.totalTricksCompleted,
+      winner: trickWinnerSeat,
+      winnerName:
+        room.players.find((p) => p.seat === trickWinnerSeat)?.name || "Unknown",
+      cards: completedTrick.cards,
+      totalPoints: completedTrick.cards.filter((c) => c.card.rank === "10")
+        .length,
+    });
+
     // Check if this is the last trick of the game (13 total tricks)
     const isLastTrick = room.gameState.totalTricksCompleted === 13;
 
@@ -550,6 +568,29 @@ export class BotManager {
         else room.gameState.draw = false;
         room.gameState.status = "finished";
         console.log("Game finished");
+
+        // Emit game end event
+        GameEventManager.emitToRoom(io, roomId, "GAME_ENDED", {
+          winner:
+            room.gameState.kot === 1
+              ? "team1"
+              : room.gameState.kot === 2
+              ? "team2"
+              : "none",
+          isDraw: room.gameState.draw,
+          isKot: Boolean(room.gameState.kot),
+          finalScores: {
+            team1: {
+              tens: room.gameState.scores.team1.tens,
+              tricks: room.gameState.scores.team1.tricks,
+            },
+            team2: {
+              tens: room.gameState.scores.team2.tens,
+              tricks: room.gameState.scores.team2.tricks,
+            },
+          },
+          totalTricks: room.gameState.totalTricksCompleted,
+        });
 
         // Track game completion metric
         metrics.incrementGamesCompleted();
