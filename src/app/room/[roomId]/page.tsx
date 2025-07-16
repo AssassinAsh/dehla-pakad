@@ -11,6 +11,7 @@ import Toast from "@/components/Toast"; // Import the new Toast component
 import ReplayModal from "@/components/ReplayModal";
 import SmartHeader from "@/components/SmartHeader";
 import { lazySocket } from "@/utils/lazySocket";
+import { useAudio } from "@/hooks/useAudio";
 
 import "@/styles/animations.css";
 import {
@@ -56,6 +57,17 @@ export default function RoomPage() {
   const [toastType, setToastType] = useState<
     "error" | "success" | "game" | "info"
   >("error");
+
+  // Audio functionality for game sounds
+  const {
+    playCardPlay,
+    playCardDeal,
+    stopCardDeal,
+    playStackWon,
+    playVictory,
+    playDefeat,
+    initializeAudio,
+  } = useAudio();
 
   // Helper functions for different toast types
   const showError = (message: string) => {
@@ -172,7 +184,115 @@ export default function RoomPage() {
 
         // Join room for updates (server will add to socket.join on create/join events)
         newSocket.on("roomUpdated", (updated: Room) => {
-          setRoom(updated);
+          setRoom((prevRoom) => {
+            // Audio integration - detect game state changes and play appropriate sounds
+            if (prevRoom && updated) {
+              // Initialize audio on first user interaction with the game
+              initializeAudio().catch(console.warn);
+
+              // Check for initial card dealing (first 5 cards only)
+              // The dealing state is only true during the initial 5-card phase (1000ms)
+              if (!prevRoom.gameState?.dealing && updated.gameState?.dealing) {
+                playCardDeal();
+
+                // Stop the dealing sound after the initial 5 cards are dealt (1000ms)
+                setTimeout(() => {
+                  stopCardDeal();
+                }, 1000);
+              }
+
+              // Check for remaining cards being dealt (detect when hand reaches 6 cards - start of second phase)
+              if (prevRoom && updated && !updated.gameState?.dealing) {
+                const currentPlayer = updated.players?.find(
+                  (p) => p.name === playerName
+                );
+                const prevPlayer = prevRoom.players?.find(
+                  (p) => p.name === playerName
+                );
+
+                if (
+                  currentPlayer &&
+                  prevPlayer &&
+                  prevPlayer.hand.length === 5 &&
+                  currentPlayer.hand.length === 6
+                ) {
+                  // This is the start of remaining cards being dealt, play sound again
+                  playCardDeal();
+
+                  // Stop the dealing sound after the remaining 8 cards are dealt
+                  // 8 cards at 200ms intervals = 1600ms
+                  setTimeout(() => {
+                    stopCardDeal();
+                  }, 1600);
+                }
+              }
+
+              // Check for card played (when current trick length increases)
+              if (updated.currentTrick && prevRoom.currentTrick) {
+                if (
+                  updated.currentTrick.length > prevRoom.currentTrick.length
+                ) {
+                  playCardPlay();
+                }
+              }
+
+              // Check for trick completion and stack won
+              if (updated.tricks && prevRoom.tricks) {
+                if (updated.tricks.length > prevRoom.tricks.length) {
+                  playStackWon();
+                }
+              }
+
+              // Check for game end (status changes to finished)
+              if (
+                prevRoom.gameState?.status !== "finished" &&
+                updated.gameState?.status === "finished"
+              ) {
+                // Use the same victory logic as the endgame modal
+                const mySeat = currentPlayer?.seat;
+                const myTeam =
+                  mySeat && (mySeat === 1 || mySeat === 3 ? "team1" : "team2");
+                const t1Tens = updated.gameState.scores.team1.tens;
+                const t2Tens = updated.gameState.scores.team2.tens;
+                const t1Tricks = updated.gameState.scores.team1.tricks;
+                const t2Tricks = updated.gameState.scores.team2.tricks;
+
+                // Check for draw first
+                const gs = updated.gameState as {
+                  draw?: boolean;
+                  kot?: number;
+                };
+                const isDraw = !!gs.draw;
+
+                let isWin = false;
+                if (!isDraw) {
+                  // Determine win based on tens first, then tricks as tiebreaker
+                  if (myTeam === "team1") {
+                    isWin =
+                      t1Tens > t2Tens ||
+                      (t1Tens === t2Tens && t1Tricks > t2Tricks);
+                  } else if (myTeam === "team2") {
+                    isWin =
+                      t2Tens > t1Tens ||
+                      (t2Tens === t1Tens && t2Tricks > t1Tricks);
+                  }
+                }
+
+                setTimeout(() => {
+                  if (isDraw) {
+                    // For draws, don't play victory or defeat sound
+                    return;
+                  } else if (isWin) {
+                    playVictory();
+                  } else {
+                    playDefeat();
+                  }
+                }, 500); // Small delay to let UI update first
+              }
+            }
+
+            return updated;
+          });
 
           // If we're already in the player list, update our current player
           const me = updated.players?.find((p) => p.name === playerName);
@@ -282,6 +402,9 @@ export default function RoomPage() {
   const joinSeat = async (seatNumber: number) => {
     if (!playerName || !room || !socketRef.current) return;
 
+    // Initialize audio when user starts interacting with the game
+    initializeAudio().catch(console.warn);
+
     socketRef.current.emit(
       "joinRoom",
       roomId,
@@ -300,6 +423,9 @@ export default function RoomPage() {
     if (!currentPlayer || !room || !socketRef.current) {
       return;
     }
+
+    // Initialize audio on first card play interaction
+    initializeAudio().catch(console.warn);
 
     // Basic validation
     if (room.currentPlayer !== currentPlayer.seat) {
@@ -424,6 +550,9 @@ export default function RoomPage() {
   // Add handler for Ready button
   const handleReady = () => {
     if (socketRef.current && room && currentPlayer) {
+      // Initialize audio when player clicks ready
+      initializeAudio().catch(console.warn);
+
       socketRef.current.emit("playerReady", room.id, currentPlayer.name);
     }
   };

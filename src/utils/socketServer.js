@@ -28,11 +28,15 @@ function emitRoomUpdate(roomId, io, delay = 50) {
   roomUpdateDebounce.set(roomId, timeoutId);
 }
 
-// Optimized dealing function to reduce emissions
-// Deals cards starting from the player clockwise to the dealer
+// Simple dealing function - deals 5 cards to each player initially
 function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
   return new Promise((resolve) => {
     let dealIndex = 0;
+
+    // Clear all player hands at the start of a new game
+    room.players.forEach((player) => {
+      player.hand = [];
+    });
 
     // Get dealing order starting from the player clockwise to the dealer
     const getDealingOrder = (dealer) => {
@@ -49,14 +53,14 @@ function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
 
     const dealCards = () => {
       if (dealIndex < 5) {
-        // Deal cards in proper order (clockwise from dealer)
+        // Deal one card to each player in order
         dealingOrder.forEach((seat) => {
           const player = room.players.find((p) => p.seat === seat);
           if (player && deck.length > 0) {
             const dealtCard = deck.shift();
             player.hand.push(dealtCard);
 
-            // Emit card dealt event for Phase 3 reconstruction
+            // Emit card dealt event
             GameEventManager.emitToRoom(
               io,
               roomId,
@@ -65,7 +69,7 @@ function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
                 playerId: player.id,
                 playerSeat: player.seat,
                 playerName: player.name,
-                cards: [dealtCard], // Single card per emission
+                cards: [dealtCard],
                 dealingRound: dealIndex + 1,
                 totalCardsDealt: player.hand.length,
               }
@@ -78,19 +82,22 @@ function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
 
         dealIndex++;
 
-        // Only emit update every 2 deals to reduce network traffic
+        // Update room state every 2 deals or at the end
         if (dealIndex % 2 === 0 || dealIndex === 5) {
           RoomManager.updateRoom(roomId, room);
           emitRoomUpdate(roomId, io, 100);
         }
 
-        setTimeout(dealCards, dealIndex === 5 ? 0 : 200); // Faster dealing
+        setTimeout(dealCards, 200);
       } else {
-        // Set the first player to play (the one who got the first card)
+        // Finished initial dealing - should have dealt 20 cards (4 players × 5 cards)
+        // Remaining deck should have 32 cards (52 - 20 = 32)
+        BotManager.validateDealingMath(room, "after-initial-dealing");
         room.firstPlayerThisRound = dealingOrder[0];
         resolve();
       }
     };
+
     dealCards();
   });
 }
@@ -517,6 +524,12 @@ export default function setupSocketIO(server) {
 
         // Only need 4 players who have all joined
         if (room && room.players.length === 4 && !room.gameStarted) {
+          // Simple safety: Prevent double game start
+          if (room.gameState && room.gameState.status === "in-progress") {
+            socket.emit("error", "Game is already in progress.");
+            return;
+          }
+
           // Set or rotate dealer (clockwise for new rounds)
           if (!room.dealerSeat) {
             // First game: assign dealer to seat 1
@@ -533,9 +546,6 @@ export default function setupSocketIO(server) {
 
           // Use optimized dealing with proper dealer logic
           await dealCardsOptimized(room, roomId, io, deck, dealerSeat);
-
-          // Check card integrity after initial dealing
-          BotManager.checkCardIntegrity(roomId, room, "after-initial-dealing");
 
           // Finish dealing
           room.gameStarted = true;

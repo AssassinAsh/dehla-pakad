@@ -204,7 +204,8 @@ export default function GameTable({
           {/* Enhanced turn indicator with better visibility */}
           {room.gameState?.status === "in-progress" &&
             room.currentPlayer === mySeat &&
-            room.currentTrick?.length < 4 && (
+            room.currentTrick?.length < 4 &&
+            room.players?.some((player) => player.hand?.length > 0) && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
                 <div
                   className="bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-400 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full border-3 border-green-300 shadow-2xl animate-pulse font-bold text-base sm:text-lg flex items-center gap-2 sm:gap-3 backdrop-blur-sm"

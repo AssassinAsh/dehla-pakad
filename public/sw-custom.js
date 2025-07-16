@@ -4,6 +4,7 @@
 const CACHE_NAME = "dehla-pakad-v1";
 const STATIC_CACHE = "dehla-pakad-static-v1";
 const DYNAMIC_CACHE = "dehla-pakad-dynamic-v1";
+const AUDIO_CACHE = "dehla-pakad-audio-v1";
 
 // Static assets to cache
 const STATIC_ASSETS = [
@@ -11,12 +12,15 @@ const STATIC_ASSETS = [
   "/offline.html",
   "/manifest.json",
   "/cards/back.png",
+  // Audio files for immediate caching
+  "/sound/card-play.mp3", // Essential sound - 15KB
   // Card images (will be cached dynamically)
 ];
 
 // Game data cache duration (in milliseconds)
 const CACHE_DURATION = {
   CARDS: 7 * 24 * 60 * 60 * 1000, // 7 days
+  AUDIO: 30 * 24 * 60 * 60 * 1000, // 30 days - long-term cache
   GAME_DATA: 1 * 60 * 60 * 1000, // 1 hour
   STATIC: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
@@ -56,6 +60,7 @@ self.addEventListener("activate", (event) => {
               return (
                 cacheName !== STATIC_CACHE &&
                 cacheName !== DYNAMIC_CACHE &&
+                cacheName !== AUDIO_CACHE &&
                 cacheName !== CACHE_NAME
               );
             })
@@ -85,6 +90,12 @@ self.addEventListener("fetch", (event) => {
   // Handle card images with long-term caching
   if (url.pathname.includes("/cards/")) {
     event.respondWith(handleCardImageRequest(request));
+    return;
+  }
+
+  // Handle audio files with long-term caching
+  if (url.pathname.includes("/sound/")) {
+    event.respondWith(handleAudioRequest(request));
     return;
   }
 
@@ -162,6 +173,52 @@ async function handleCardImageRequest(request) {
   }
 
   return cachedResponse || caches.match("/cards/back.png");
+}
+
+// Handle audio requests with aggressive caching
+async function handleAudioRequest(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const cachedResponse = await cache.match(request);
+
+  if (cachedResponse) {
+    // Check if cache is still valid (30 days for audio)
+    const cachedDate = new Date(
+      cachedResponse.headers.get("sw-cached-date") || 0
+    );
+    const now = new Date();
+
+    if (now - cachedDate < CACHE_DURATION.AUDIO) {
+      console.log("[SW] Serving audio from cache:", request.url);
+      return cachedResponse;
+    }
+  }
+
+  try {
+    console.log("[SW] Fetching audio from network:", request.url);
+    const networkResponse = await fetch(request);
+
+    if (networkResponse.ok) {
+      // Clone response and add cache date
+      const responseToCache = networkResponse.clone();
+      const headers = new Headers(responseToCache.headers);
+      headers.set("sw-cached-date", new Date().toISOString());
+      headers.set("Cache-Control", "public, max-age=2592000"); // 30 days
+
+      const modifiedResponse = new Response(responseToCache.body, {
+        status: responseToCache.status,
+        statusText: responseToCache.statusText,
+        headers: headers,
+      });
+
+      cache.put(request, modifiedResponse.clone());
+      console.log("[SW] Audio cached successfully:", request.url);
+      return networkResponse;
+    }
+  } catch (error) {
+    console.log("[SW] Network failed for audio, serving from cache:", error);
+  }
+
+  return cachedResponse || new Response("Audio not available", { status: 404 });
 }
 
 // Handle API requests with network-first strategy

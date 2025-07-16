@@ -57,6 +57,17 @@ const withPWA = createPWA({
         },
       },
       {
+        urlPattern: /\/sound\/.*\.mp3$/i,
+        handler: "CacheFirst",
+        options: {
+          cacheName: "audio-files",
+          expiration: {
+            maxEntries: 10, // All game audio files
+            maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+          },
+        },
+      },
+      {
         urlPattern: /\.(?:js|css)$/i,
         handler: "StaleWhileRevalidate",
         options: {
