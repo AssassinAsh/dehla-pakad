@@ -62,6 +62,21 @@ export default function Home() {
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
 
+  // Load name from localStorage on mount
+  useEffect(() => {
+    const savedName = localStorage.getItem("playerName");
+    if (savedName) {
+      setPlayerName(savedName);
+    }
+  }, []);
+
+  // Save name to localStorage when it changes
+  useEffect(() => {
+    if (playerName.trim()) {
+      localStorage.setItem("playerName", playerName);
+    }
+  }, [playerName]);
+
   const createRoom = async () => {
     if (!playerName.trim()) {
       alert("Please enter your name");
