@@ -545,6 +545,16 @@ export class BotManager {
             trickWinnerSeat === 1 || trickWinnerSeat === 3 ? "team1" : "team2";
           const tricksToAward = [...room.stackedTricks]; // All stacked tricks
 
+          // Count tens captured in this stack collection
+          let tensCount = 0;
+          tricksToAward.forEach((trick) => {
+            trick.cards.forEach((c) => {
+              if (c.card.rank === "10") {
+                tensCount += 1;
+              }
+            });
+          });
+
           // Add to team's captured tricks
           room.tricks.push(...tricksToAward);
 
@@ -557,6 +567,15 @@ export class BotManager {
               }
             });
           });
+
+          // Emit ten capture event if any tens were captured
+          if (tensCount > 0) {
+            io.to(roomId).emit("tenCaptured", {
+              winnerTeam: winnerTeam,
+              tensCount: tensCount,
+              playerSeat: trickWinnerSeat,
+            });
+          }
 
           room.stackedTricks = []; // Clear the stack after collection
           room.gameState.lastTrickWinnerSeat = null; // Reset for next stack

@@ -57,6 +57,12 @@ export default function RoomPage() {
   const [toastType, setToastType] = useState<
     "error" | "success" | "game" | "info"
   >("error");
+  const [isPlayingCard, setIsPlayingCard] = useState(false); // Prevent rapid card plays
+  const [tenCaptureSplash, setTenCaptureSplash] = useState<{
+    message: string;
+    type: "captured" | "lost";
+    count: number;
+  } | null>(null); // State for 10 capture splash
 
   // Audio functionality for game sounds
   const {
@@ -104,6 +110,7 @@ export default function RoomPage() {
         newSocket.removeAllListeners("replayResponse");
         newSocket.removeAllListeners("hostLeft");
         newSocket.removeAllListeners("gameEvent"); // Phase 1: Add game event cleanup
+        newSocket.removeAllListeners("tenCaptured"); // Cleanup ten capture events
 
         // If socket is already connected, immediately run the logic
         if (newSocket.connected) {
@@ -233,7 +240,14 @@ export default function RoomPage() {
                   updated.currentTrick.length > prevRoom.currentTrick.length
                 ) {
                   playCardPlay();
+                  // Clear the playing flag since a card was successfully played
+                  setIsPlayingCard(false);
                 }
+              }
+
+              // Also clear playing flag if current player changed (backup check)
+              if (prevRoom.currentPlayer !== updated.currentPlayer) {
+                setIsPlayingCard(false);
               }
 
               // Check for trick completion and stack won
@@ -248,46 +262,8 @@ export default function RoomPage() {
                 prevRoom.gameState?.status !== "finished" &&
                 updated.gameState?.status === "finished"
               ) {
-                // Use the same victory logic as the endgame modal
-                const mySeat = currentPlayer?.seat;
-                const myTeam =
-                  mySeat && (mySeat === 1 || mySeat === 3 ? "team1" : "team2");
-                const t1Tens = updated.gameState.scores.team1.tens;
-                const t2Tens = updated.gameState.scores.team2.tens;
-                const t1Tricks = updated.gameState.scores.team1.tricks;
-                const t2Tricks = updated.gameState.scores.team2.tricks;
-
-                // Check for draw first
-                const gs = updated.gameState as {
-                  draw?: boolean;
-                  kot?: number;
-                };
-                const isDraw = !!gs.draw;
-
-                let isWin = false;
-                if (!isDraw) {
-                  // Determine win based on tens first, then tricks as tiebreaker
-                  if (myTeam === "team1") {
-                    isWin =
-                      t1Tens > t2Tens ||
-                      (t1Tens === t2Tens && t1Tricks > t2Tricks);
-                  } else if (myTeam === "team2") {
-                    isWin =
-                      t2Tens > t1Tens ||
-                      (t2Tens === t1Tens && t2Tricks > t1Tricks);
-                  }
-                }
-
-                setTimeout(() => {
-                  if (isDraw) {
-                    // For draws, don't play victory or defeat sound
-                    return;
-                  } else if (isWin) {
-                    playVictory();
-                  } else {
-                    playDefeat();
-                  }
-                }, 500); // Small delay to let UI update first
+                // Game ended - audio will be played when replay modal opens
+                // No audio logic here to avoid conflicts with the modal
               }
             }
 
@@ -306,6 +282,44 @@ export default function RoomPage() {
           // Events are processed silently - future phases will use these for UI updates
           // Available events: cardPlayed, trumpSet, trickCompleted, etc.
         });
+
+        // Listen for 10 capture events
+        newSocket.on(
+          "tenCaptured",
+          (data: {
+            winnerTeam: "team1" | "team2";
+            tensCount: number;
+            playerSeat: number;
+          }) => {
+            if (data.tensCount > 0) {
+              // Use a more reliable way to get current player info
+              setRoom((currentRoom) => {
+                if (currentRoom) {
+                  const currentPlayerInRoom = currentRoom.players?.find(
+                    (p: Player) => p.name === playerName
+                  );
+                  const mySeat = currentPlayerInRoom?.seat;
+                  const myTeam =
+                    mySeat &&
+                    (mySeat === 1 || mySeat === 3 ? "team1" : "team2");
+
+                  const isMyTeam = myTeam === data.winnerTeam;
+                  setTenCaptureSplash({
+                    message: isMyTeam ? "10 Captured!" : "10 Lost!",
+                    type: isMyTeam ? "captured" : "lost",
+                    count: data.tensCount,
+                  });
+
+                  // Clear the splash after 2 seconds
+                  setTimeout(() => {
+                    setTenCaptureSplash(null);
+                  }, 2000);
+                }
+                return currentRoom; // Return unchanged room
+              });
+            }
+          }
+        );
 
         // Handle replay events
         newSocket.on("gameRestarted", () => {
@@ -394,6 +408,7 @@ export default function RoomPage() {
         socketRef.current.removeAllListeners("replayResponse");
         socketRef.current.removeAllListeners("hostLeft");
         socketRef.current.removeAllListeners("gameEvent"); // Phase 1: Cleanup game events
+        socketRef.current.removeAllListeners("tenCaptured"); // Cleanup ten capture events
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -424,6 +439,11 @@ export default function RoomPage() {
       return;
     }
 
+    // Prevent rapid card plays
+    if (isPlayingCard) {
+      return;
+    }
+
     // Initialize audio on first card play interaction
     initializeAudio().catch(console.warn);
 
@@ -433,7 +453,15 @@ export default function RoomPage() {
       return;
     }
 
+    // Set playing flag to prevent multiple rapid plays
+    setIsPlayingCard(true);
+
     socketRef.current.emit("playCard", roomId, card.id, playerName);
+
+    // Clear the flag after a short delay to allow the server to process
+    setTimeout(() => {
+      setIsPlayingCard(false);
+    }, 500); // 500ms should be enough for server processing
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -530,8 +558,20 @@ export default function RoomPage() {
         t2Tricks,
       });
       setShowReplayModal(true);
+
+      // Play appropriate sound based on game result
+      setTimeout(() => {
+        if (result === "draw") {
+          // For draws, don't play victory or defeat sound
+          return;
+        } else if (result === "win") {
+          playVictory();
+        } else {
+          playDefeat();
+        }
+      }, 500); // Small delay to let UI update first
     }
-  }, [room, currentPlayer]);
+  }, [room, currentPlayer, playVictory, playDefeat]);
 
   const handleReplay = () => {
     // Close the replay modal and return to the table
@@ -702,6 +742,47 @@ export default function RoomPage() {
               </div>
             )}
         </main>
+
+        {/* Ten Capture Splash */}
+        {tenCaptureSplash && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div
+              className={`
+                px-8 py-6 rounded-2xl shadow-2xl border-4 font-bold text-2xl transform
+                ${
+                  tenCaptureSplash.type === "captured"
+                    ? "bg-gradient-to-r from-green-500 to-green-600 border-green-400 text-white shadow-green-500/50"
+                    : "bg-gradient-to-r from-red-500 to-red-600 border-red-400 text-white shadow-red-500/50"
+                }
+              `}
+              style={{
+                animation:
+                  "fadeInScale 0.3s ease-out, fadeOut 0.3s ease-in 1.7s forwards",
+                boxShadow:
+                  tenCaptureSplash.type === "captured"
+                    ? "0 20px 60px rgba(34, 197, 94, 0.6), 0 0 40px rgba(34, 197, 94, 0.4)"
+                    : "0 20px 60px rgba(239, 68, 68, 0.6), 0 0 40px rgba(239, 68, 68, 0.4)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-4xl animate-bounce">
+                  {tenCaptureSplash.type === "captured" ? "🎯" : "💔"}
+                </span>
+                <div>
+                  <div className="text-2xl font-black tracking-wide">
+                    {tenCaptureSplash.message}
+                  </div>
+                  {tenCaptureSplash.count > 1 && (
+                    <div className="text-lg opacity-90 font-semibold">
+                      {tenCaptureSplash.count} tens in this stack!
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Player Hand (always at bottom, floating) */}
         {currentPlayer && (
           <PlayerHand
