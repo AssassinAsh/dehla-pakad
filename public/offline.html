@@ -1,18 +1,316 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Offline - Dehla Pakad</title>
-  <style>
-    body { font-family: sans-serif; background: #14532d; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .offline-box { background: #fff3cd; color: #856404; padding: 2rem; border-radius: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dehla Pakad - Offline</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/icon.jpg" type="image/jpeg">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .offline-container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 30px;
+            background: white;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .logo img {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .offline-message {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+            padding: 15px 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: #51cf66;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .feature-list {
+            text-align: left;
+            margin-bottom: 30px;
+        }
+
+        .feature-list h3 {
+            margin-bottom: 15px;
+            color: #ffd43b;
+        }
+
+        .feature-list ul {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .feature-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #51cf66;
+            font-weight: bold;
+        }
+
+        .retry-button {
+            background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(81, 207, 102, 0.3);
+            font-weight: 600;
+        }
+
+        .retry-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(81, 207, 102, 0.4);
+        }
+
+        .retry-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .game-preview {
+            margin-top: 40px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-preview h4 {
+            margin-bottom: 15px;
+            color: #ffd43b;
+        }
+
+        .card-demo {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .card {
+            width: 40px;
+            height: 56px;
+            background: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .offline-message {
+                font-size: 1.1rem;
+            }
+            
+            body {
+                padding: 15px;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="offline-box">
-    <h1>Offline</h1>
-    <p>You are not connected to the internet.<br/>Please turn on your internet connection to play Dehla Pakad.</p>
-  </div>
+    <div class="offline-container">
+        <div class="logo">
+            <img src="/icon.jpg" alt="Dehla Pakad" onerror="this.style.display='none'">
+        </div>
+        
+        <h1>Dehla Pakad</h1>
+        
+        <div class="offline-message">
+            You're currently offline, but don't worry! Some features are still available.
+        </div>
+        
+        <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Offline</span>
+        </div>
+        
+        <div class="feature-list">
+            <h3>Available Offline:</h3>
+            <ul>
+                <li>View game rules and tutorials</li>
+                <li>Access your game statistics</li>
+                <li>Browse previously cached games</li>
+                <li>Customize app preferences</li>
+            </ul>
+        </div>
+        
+        <button class="retry-button" onclick="checkConnection()">
+            Try Again
+        </button>
+        
+        <div class="game-preview">
+            <h4>Ready to Play?</h4>
+            <p>Once you're back online, you can join multiplayer games with friends or challenge our smart bots!</p>
+            <div class="card-demo">
+                <div class="card">A♠</div>
+                <div class="card">K♥</div>
+                <div class="card">Q♦</div>
+                <div class="card">J♣</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let retryAttempts = 0;
+        const maxRetryAttempts = 3;
+
+        function updateConnectionStatus(isOnline) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const retryButton = document.querySelector('.retry-button');
+
+            if (isOnline) {
+                statusDot.classList.add('online');
+                statusText.textContent = 'Back Online!';
+                retryButton.textContent = 'Continue to Game';
+                retryButton.onclick = () => window.location.href = '/';
+            } else {
+                statusDot.classList.remove('online');
+                statusText.textContent = 'Offline';
+                retryButton.textContent = 'Try Again';
+                retryButton.onclick = checkConnection;
+            }
+        }
+
+        function checkConnection() {
+            const retryButton = document.querySelector('.retry-button');
+            retryButton.disabled = true;
+            retryButton.textContent = 'Checking...';
+
+            // Simulate connection check
+            fetch('/api/health', { 
+                method: 'GET',
+                cache: 'no-cache'
+            })
+            .then(response => {
+                if (response.ok) {
+                    updateConnectionStatus(true);
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    throw new Error('Server not responding');
+                }
+            })
+            .catch(() => {
+                retryAttempts++;
+                if (retryAttempts >= maxRetryAttempts) {
+                    retryButton.textContent = 'Still Offline';
+                    setTimeout(() => {
+                        retryButton.disabled = false;
+                        retryButton.textContent = 'Try Again';
+                        retryAttempts = 0;
+                    }, 3000);
+                } else {
+                    retryButton.disabled = false;
+                    retryButton.textContent = 'Try Again';
+                }
+                updateConnectionStatus(false);
+            });
+        }
+
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            updateConnectionStatus(true);
+        });
+
+        window.addEventListener('offline', () => {
+            updateConnectionStatus(false);
+        });
+
+        // Initial status check
+        updateConnectionStatus(navigator.onLine);
+
+        // Auto-retry when coming back online
+        if (navigator.onLine) {
+            setTimeout(checkConnection, 1000);
+        }
+    </script>
 </body>
 </html> 
