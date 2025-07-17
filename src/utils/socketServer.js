@@ -329,8 +329,10 @@ export default function setupSocketIO(server) {
         // Make bots ready
         BotManager.makeBotsReady(roomId);
 
+        const response = { status: "matched", roomId, gameType: "quick-bots" };
+
         if (typeof callback === "function") {
-          callback({ status: "matched", roomId, gameType: "quick-bots" });
+          callback(response);
         }
       } catch (error) {
         console.error("Error creating bot game:", error);
