@@ -57,8 +57,26 @@
   animation: fade-in 0.3s ease-out forwards;
 }
 
+/* Logo floating animation */
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+/* Scroll down indicator animation */
+.animate-scroll-down {
+  animation: scrollDown 2s ease-in-out infinite;
+}
+
+@keyframes scrollDown {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(10px);
+  }
+  60% {
+    transform: translateY(5px);
+  }
 }
 
 /* Enhanced Card Glow Effect */
@@ -196,11 +214,11 @@
 
 /* Team Indicators */
 .team-1-bg {
-  background: linear-gradient(135deg, #1e40af, #1e3a8a);
+  background: linear-gradient(135deg, #00D2FF, #007BFF);
 }
 
 .team-2-bg {
-  background: linear-gradient(135deg, #065f46, #064e3b);
+  background: linear-gradient(135deg, #FF4C4C, #FF2D2D);
 }
 
 /* Radial Gradient Background for Play Area */
@@ -547,12 +565,12 @@
 }
 
 .focus-ring:focus {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #00D2FF;
   outline-offset: 2px;
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #00D2FF;
   outline-offset: 2px;
 }
 
@@ -647,4 +665,16 @@
 
 .dealing-deck:hover {
   filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.4));
+}
+
+/* Mobile smooth scrolling behavior */
+@media (max-width: 768px) {
+  html {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+  }
+  
+  .mobile-slide {
+    scroll-snap-align: start;
+  }
 }

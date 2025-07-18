@@ -2,15 +2,15 @@
 
 /* --- Mobile-first base styles for Dehla Pakad --- */
 :root {
-  --color-table-bg: #20603d;
-  --color-table-accent: #388e3c;
-  --color-card-bg: #fff;
-  --color-card-border: #bdbdbd;
-  --color-primary: #388e3c;
-  --color-secondary: #fbc02d;
-  --color-accent: #d32f2f;
-  --color-avatar-bg: #263238;
-  --color-avatar-active: #fbc02d;
+  --color-table-bg: #0D1117;
+  --color-table-accent: #1B2735;
+  --color-card-bg: #131A23;
+  --color-card-border: #1B2735;
+  --color-primary: #00D2FF;
+  --color-secondary: #00D2FF;
+  --color-accent: #FF4C4C;
+  --color-avatar-bg: #131A23;
+  --color-avatar-active: #00D2FF;
   --font-main: 'Montserrat', 'Segoe UI', Arial, sans-serif;
 }
 
@@ -19,7 +19,7 @@ body {
   background: radial-gradient(circle at 60% 40%, var(--color-table-bg) 60%, var(--color-table-accent) 100%);
   min-height: 100vh;
   margin: 0;
-  color: #fff;
+  color: #00D2FF;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

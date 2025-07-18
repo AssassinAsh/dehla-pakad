@@ -190,7 +190,9 @@ export default function PlayerHand({
         ];
         return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
       }
-      return a.suit.localeCompare(b.suit);
+      // Custom suit order: Spade, Heart, Club, Diamond
+      const suitOrder = ["S", "H", "C", "D"];
+      return suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
     });
     setSortedHand(sorted);
   }, [hand]);

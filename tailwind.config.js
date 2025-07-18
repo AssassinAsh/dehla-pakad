@@ -66,6 +66,14 @@ module.exports = {
         "card-back": "#1a472a",
         "felt-green": "#0f5132",
         "felt-dark": "#052e16",
+        dp: {
+          background: "#0D1117",
+          neon: "#00D2FF",
+          heart: "#FF4C4C",
+          cardBorder: "#1B2735",
+          cardFace: "#131A23",
+          glow: "#007BFF80",
+        },
         gold: {
           50: "#fffbeb",
           100: "#fef3c7",
