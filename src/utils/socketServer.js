@@ -28,78 +28,90 @@ function emitRoomUpdate(roomId, io, delay = 50) {
   roomUpdateDebounce.set(roomId, timeoutId);
 }
 
-// Simple dealing function - deals 5 cards to each player initially
-function dealCardsOptimized(room, roomId, io, deck, dealerSeat) {
+// Get dealing order starting from the player clockwise to the dealer
+const getDealingOrder = (dealer) => {
+  const order = [];
+  for (let i = 1; i <= 4; i++) {
+    const seat = (dealer % 4) + i; // Start from next seat clockwise
+    const adjustedSeat = seat > 4 ? seat - 4 : seat;
+    order.push(adjustedSeat);
+  }
+  return order;
+};
+
+// Optimized dealing function - deals cards one by one to players
+function dealCardsOptimized(
+  room,
+  roomId,
+  io,
+  deck,
+  dealingOrder,
+  cardsPerPlayer
+) {
   return new Promise((resolve) => {
-    let dealIndex = 0;
+    let dealCount = 0;
+    const totalCards = cardsPerPlayer * dealingOrder.length;
 
-    // Clear all player hands at the start of a new game
-    room.players.forEach((player) => {
-      player.hand = [];
-    });
-
-    // Get dealing order starting from the player clockwise to the dealer
-    const getDealingOrder = (dealer) => {
-      const order = [];
-      for (let i = 1; i <= 4; i++) {
-        const seat = (dealer % 4) + i; // Start from next seat clockwise
-        const adjustedSeat = seat > 4 ? seat - 4 : seat;
-        order.push(adjustedSeat);
-      }
-      return order;
-    };
-
-    const dealingOrder = getDealingOrder(dealerSeat);
-
-    const dealCards = () => {
-      if (dealIndex < 5) {
-        // Deal one card to each player in order
-        dealingOrder.forEach((seat) => {
-          const player = room.players.find((p) => p.seat === seat);
-          if (player && deck.length > 0) {
-            const dealtCard = deck.shift();
-            player.hand.push(dealtCard);
-
-            // Emit card dealt event
-            GameEventManager.emitToRoom(
-              io,
-              roomId,
-              GameEventTypes.CARDS_DEALT_INITIAL,
-              {
-                playerId: player.id,
-                playerSeat: player.seat,
-                playerName: player.name,
-                cards: [dealtCard],
-                dealingRound: dealIndex + 1,
-                totalCardsDealt: player.hand.length,
-              }
-            );
-          }
-        });
-
-        // Update bot hands
+    const dealNext = () => {
+      if (dealCount >= totalCards) {
+        // Dealing phase complete
         BotManager.updateBotHands(roomId, room);
+        RoomManager.updateRoom(roomId, room);
 
-        dealIndex++;
-
-        // Update room state every 2 deals or at the end
-        if (dealIndex % 2 === 0 || dealIndex === 5) {
-          RoomManager.updateRoom(roomId, room);
-          emitRoomUpdate(roomId, io, 100);
+        if (cardsPerPlayer === 5) {
+          // After initial dealing, set first player
+          room.firstPlayerThisRound = dealingOrder[0];
+          BotManager.validateDealingMath(room, "after-initial-dealing");
+        } else {
+          // After final dealing, validate completion
+          BotManager.validateDealingMath(room, "after-full-dealing");
         }
 
-        setTimeout(dealCards, 200);
-      } else {
-        // Finished initial dealing - should have dealt 20 cards (4 players × 5 cards)
-        // Remaining deck should have 32 cards (52 - 20 = 32)
-        BotManager.validateDealingMath(room, "after-initial-dealing");
-        room.firstPlayerThisRound = dealingOrder[0];
-        resolve();
+        return resolve();
       }
+
+      const currentSeat = dealingOrder[dealCount % dealingOrder.length];
+      const player = room.players.find((p) => p.seat === currentSeat);
+
+      if (player && deck.length > 0) {
+        const dealtCard = deck.shift();
+        player.hand.push(dealtCard);
+
+        // Emit card dealt event
+        GameEventManager.emitToRoom(
+          io,
+          roomId,
+          GameEventTypes.CARDS_DEALT_INITIAL,
+          {
+            playerId: player.id,
+            playerSeat: player.seat,
+            playerName: player.name,
+            cards: [dealtCard],
+            dealingRound: Math.floor(dealCount / dealingOrder.length) + 1,
+            totalCardsDealt: player.hand.length,
+            cardsPerPlayerThisPhase: cardsPerPlayer,
+            dealingPhase: cardsPerPlayer === 5 ? "initial" : "final",
+          }
+        );
+      }
+
+      dealCount++;
+      setTimeout(dealNext, 200); // 200ms delay between each card dealing event for balanced dealing speed
     };
 
-    dealCards();
+    dealNext();
   });
+}
+
+// Initial dealing function - deals 5 cards to each player
+async function dealInitialCards(room, roomId, io, deck, dealerSeat) {
+  // Clear all player hands at the start of a new game
+  room.players.forEach((player) => {
+    player.hand = [];
+  });
+
+  const dealingOrder = getDealingOrder(dealerSeat);
+  await dealCardsOptimized(room, roomId, io, deck, dealingOrder, 5);
 }
 
 // Create a wrapper around the TypeScript socketServer
@@ -547,7 +559,7 @@ export default function setupSocketIO(server) {
           const deck = createDeck();
 
           // Use optimized dealing with proper dealer logic
-          await dealCardsOptimized(room, roomId, io, deck, dealerSeat);
+          await dealInitialCards(room, roomId, io, deck, dealerSeat);
 
           // Finish dealing
           room.gameStarted = true;
@@ -615,14 +627,14 @@ export default function setupSocketIO(server) {
             const deck = createDeck();
 
             // Use optimized dealing with proper dealer logic
-            await dealCardsOptimized(room, roomId, io, deck, dealerSeat);
+            await dealInitialCards(room, roomId, io, deck, dealerSeat);
 
             room.gameStarted = true;
             room.gameState.status = "in-progress";
             // Set current player to the one who got the first card (clockwise from dealer)
             room.currentPlayer = room.firstPlayerThisRound;
             room.deck = deck;
-            RoomManager.setDealing(roomId, false);
+            await RoomManager.setDealing(roomId, false);
             RoomManager.updateRoom(roomId, room);
 
             // Track game started metric

@@ -2,7 +2,7 @@ import { BotEngine } from "./botEngine.js";
 import { RoomManager } from "./roomManager.js";
 import { determineTrickWinner } from "./gameLogic.js";
 import metrics from "./metrics.js";
-import { GameEventManager, GameEventTypes } from "./gameEventManager.js"; // Phase 1: Event system
+import { GameEventManager, GameEventTypes } from "./gameEventManager.js";
 
 export class BotManager {
   static botPlayers = new Map(); // Track bot players by room
@@ -119,36 +119,37 @@ export class BotManager {
     return false; // No dealing needed
   }
 
-  // Deal remaining 32 cards to all players (8 cards each)
+  // Deal remaining 32 cards to all players (8 cards each) using optimized dealing
   static dealRemainingCards(roomId, room, io) {
     const deck = [...room.deck];
     room.deck = [];
 
-    const dealCards = () => {
-      if (deck.length >= room.players.length) {
-        // Deal one card to each player per iteration
-        for (let i = 0; i < room.players.length && deck.length > 0; i++) {
-          const player = room.players[i];
-          const cardToAdd = deck.shift();
-          player.hand.push(cardToAdd);
-        }
+    // Set dealing state to true for animation
+    RoomManager.setDealing(roomId, true);
 
-        // Update bot hands tracking
-        this.updateBotHands(roomId, room);
+    // Get dealing order (clockwise from current player or seat 1 if none)
+    const getDealingOrder = () => {
+      const startSeat = room.currentPlayer || 1;
+      const order = [];
+      for (let i = 0; i < 4; i++) {
+        const seat = ((startSeat - 1 + i) % 4) + 1;
+        order.push(seat);
+      }
+      return order;
+    };
 
-        // Update room and broadcast
-        RoomManager.updateRoomState(roomId, room);
-        if (this.emitRoomUpdateFn) {
-          this.emitRoomUpdateFn(roomId, io, 100);
-        } else {
-          io.to(roomId).emit("roomUpdated", room);
-        }
+    const dealingOrder = getDealingOrder();
+    let dealCount = 0;
+    const cardsPerPlayer = 8;
+    const totalCards = cardsPerPlayer * dealingOrder.length;
 
-        // Continue dealing after a short delay
-        setTimeout(dealCards, 200);
-      } else {
+    const dealNext = () => {
+      if (dealCount >= totalCards) {
         // Finished dealing remaining cards - each player should now have 13 cards total
         this.validateDealingMath(room, "after-full-dealing");
+
+        // Set dealing state back to false
+        RoomManager.setDealing(roomId, false);
 
         // Final update and continue with next turn
         RoomManager.updateRoom(roomId, room);
@@ -163,10 +164,53 @@ export class BotManager {
         setTimeout(() => {
           this.handleTurn(roomId, room, io);
         }, 500);
+
+        return;
       }
+
+      const currentSeat = dealingOrder[dealCount % dealingOrder.length];
+      const player = room.players.find((p) => p.seat === currentSeat);
+
+      if (player && deck.length > 0) {
+        const cardToAdd = deck.shift();
+        player.hand.push(cardToAdd);
+
+        // Emit card dealt event for remaining cards using the same event system as initial dealing
+        GameEventManager.emitToRoom(
+          io,
+          roomId,
+          GameEventTypes.CARDS_DEALT_INITIAL,
+          {
+            playerId: player.id,
+            playerSeat: player.seat,
+            playerName: player.name,
+            cards: [cardToAdd],
+            dealingRound: Math.floor(dealCount / dealingOrder.length) + 1,
+            totalCardsDealt: player.hand.length,
+            cardsPerPlayerThisPhase: cardsPerPlayer,
+            dealingPhase: "final",
+          }
+        );
+      }
+
+      // Update bot hands tracking
+      this.updateBotHands(roomId, room);
+
+      // Update room and broadcast every few cards to avoid spam
+      if (dealCount % 4 === 0 || dealCount >= totalCards - 1) {
+        RoomManager.updateRoomState(roomId, room);
+        if (this.emitRoomUpdateFn) {
+          this.emitRoomUpdateFn(roomId, io, 100);
+        } else {
+          io.to(roomId).emit("roomUpdated", room);
+        }
+      }
+
+      dealCount++;
+      setTimeout(dealNext, 200); // Match timing with initial dealing (200ms)
     };
 
-    dealCards();
+    dealNext();
   }
 
   // Helper function to update room, broadcast, and handle turn
@@ -424,7 +468,7 @@ export class BotManager {
             room.gameState.trumpJustSet = true; // For animation
             room.trumpSetThisTrick = true; // Track for dealing logic
 
-            // Phase 1: Emit trump set event (alongside existing logic)
+            // Emit trump set event alongside existing logic
             GameEventManager.emitToRoom(io, roomId, GameEventTypes.TRUMP_SET, {
               trumpSuit: playedCard.suit,
               setByPlayer: player.seat,

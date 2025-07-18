@@ -581,3 +581,70 @@
 .haptic-strong:active {
   transform: scale(0.9);
 }
+
+/* Card Dealing Animation Styles */
+@keyframes card-deal-fly {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.8) rotate(3deg);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(0.7) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes deck-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes card-receive {
+  0% {
+    transform: scale(0.7) rotate(5deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1) rotate(-2deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-card-deal {
+  animation: card-deal-fly 0.4s ease-in-out;
+}
+
+.animate-deck-pulse {
+  animation: deck-pulse 0.3s ease-in-out;
+}
+
+.animate-card-receive {
+  animation: card-receive 0.3s ease-out;
+}
+
+/* Smooth card movement with bezier curve */
+.card-flying {
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Enhanced dealing deck effects */
+.dealing-deck {
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+  transition: filter 0.2s ease;
+}
+
+.dealing-deck:hover {
+  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.4));
+}

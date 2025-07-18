@@ -67,8 +67,6 @@ export default function RoomPage() {
   // Audio functionality for game sounds
   const {
     playCardPlay,
-    playCardDeal,
-    stopCardDeal,
     playStackWon,
     playVictory,
     playDefeat,
@@ -109,8 +107,8 @@ export default function RoomPage() {
         newSocket.removeAllListeners("replayApproved");
         newSocket.removeAllListeners("replayResponse");
         newSocket.removeAllListeners("hostLeft");
-        newSocket.removeAllListeners("gameEvent"); // Phase 1: Add game event cleanup
-        newSocket.removeAllListeners("tenCaptured"); // Cleanup ten capture events
+        newSocket.removeAllListeners("gameEvent");
+        newSocket.removeAllListeners("tenCaptured");
 
         // If socket is already connected, immediately run the logic
         if (newSocket.connected) {
@@ -197,43 +195,6 @@ export default function RoomPage() {
               // Initialize audio on first user interaction with the game
               initializeAudio().catch(console.warn);
 
-              // Check for initial card dealing (first 5 cards only)
-              // The dealing state is only true during the initial 5-card phase (1000ms)
-              if (!prevRoom.gameState?.dealing && updated.gameState?.dealing) {
-                playCardDeal();
-
-                // Stop the dealing sound after the initial 5 cards are dealt (1000ms)
-                setTimeout(() => {
-                  stopCardDeal();
-                }, 1000);
-              }
-
-              // Check for remaining cards being dealt (detect when hand reaches 6 cards - start of second phase)
-              if (prevRoom && updated && !updated.gameState?.dealing) {
-                const currentPlayer = updated.players?.find(
-                  (p) => p.name === playerName
-                );
-                const prevPlayer = prevRoom.players?.find(
-                  (p) => p.name === playerName
-                );
-
-                if (
-                  currentPlayer &&
-                  prevPlayer &&
-                  prevPlayer.hand.length === 5 &&
-                  currentPlayer.hand.length === 6
-                ) {
-                  // This is the start of remaining cards being dealt, play sound again
-                  playCardDeal();
-
-                  // Stop the dealing sound after the remaining 8 cards are dealt
-                  // 8 cards at 200ms intervals = 1600ms
-                  setTimeout(() => {
-                    stopCardDeal();
-                  }, 1600);
-                }
-              }
-
               // Check for card played (when current trick length increases)
               if (updated.currentTrick && prevRoom.currentTrick) {
                 if (
@@ -277,10 +238,8 @@ export default function RoomPage() {
           }
         });
 
-        // Phase 1: Game Event Listener (silent event processing)
         newSocket.on("gameEvent", () => {
-          // Events are processed silently - future phases will use these for UI updates
-          // Available events: cardPlayed, trumpSet, trickCompleted, etc.
+          // Events are processed silently for future phases
         });
 
         // Listen for 10 capture events
@@ -407,8 +366,8 @@ export default function RoomPage() {
         socketRef.current.removeAllListeners("replayApproved");
         socketRef.current.removeAllListeners("replayResponse");
         socketRef.current.removeAllListeners("hostLeft");
-        socketRef.current.removeAllListeners("gameEvent"); // Phase 1: Cleanup game events
-        socketRef.current.removeAllListeners("tenCaptured"); // Cleanup ten capture events
+        socketRef.current.removeAllListeners("gameEvent");
+        socketRef.current.removeAllListeners("tenCaptured");
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -703,10 +662,12 @@ export default function RoomPage() {
             onSeatClick={joinSeat}
             onAddBot={handleAddBot}
             isHost={currentPlayer?.name === room.host}
+            socket={socketRef.current || undefined}
           />
 
           {/* Ready Button System - Centered in viewport */}
           {!room.gameStarted &&
+            !room.gameState?.dealing &&
             room.players.length === 4 &&
             room.players.every((p) => p.seat !== null) && (
               <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">

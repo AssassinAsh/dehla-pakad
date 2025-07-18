@@ -1,5 +1,5 @@
 // Game Event Manager for Dehla Pakad
-// Phase 1: Event System Foundation - Non-breaking addition to existing system
+// Game Event Management - Non-breaking addition to existing system
 
 export class GameEventManager {
   constructor() {

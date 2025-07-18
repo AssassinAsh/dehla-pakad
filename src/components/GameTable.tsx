@@ -1,6 +1,9 @@
-import { Room } from "@/types/game";
+import { Room, Card } from "@/types/game";
+import { Socket } from "socket.io-client";
 import Image from "next/image";
 import PlayArea from "./PlayArea";
+import { useAudio } from "@/hooks/useAudio";
+import { useState, useEffect } from "react";
 import { getSuitSymbol } from "@/utils/gameUtils";
 
 interface GameTableProps {
@@ -10,6 +13,7 @@ interface GameTableProps {
   onSeatClick?: (seat: number) => void;
   onAddBot?: (seat: number) => void;
   isHost?: boolean;
+  socket?: Socket; // Socket.IO socket for listening to card dealing events
 }
 
 /**
@@ -22,8 +26,108 @@ export default function GameTable({
   onSeatClick,
   onAddBot,
   isHost = false,
+  socket,
 }: GameTableProps) {
   const isDealing = room.gameState?.dealing || false;
+  const { playCardDeal, stopCardDeal } = useAudio();
+
+  // Event-driven dealing animation state
+  const [dealingCards, setDealingCards] = useState<
+    Array<{
+      id: string;
+      targetSeat: number;
+      startTime: number;
+      position: { x: number; y: number };
+      opacity: number;
+    }>
+  >([]);
+
+  // Listen for individual card dealing events from server
+  useEffect(() => {
+    if (!socket) {
+      setDealingCards([]);
+      return;
+    }
+
+    // Reset animation when dealing starts
+    if (isDealing) {
+      setDealingCards([]);
+    } else {
+      setDealingCards([]);
+      return;
+    }
+
+    const handleCardDealt = (event: {
+      type: string;
+      data: {
+        playerSeat: number;
+        playerId: string;
+        playerName: string;
+        cards: Card[];
+        dealingRound: number;
+        totalCardsDealt: number;
+      };
+    }) => {
+      if (event.type === "cardsDealtInitial") {
+        const { playerSeat } = event.data;
+
+        // Calculate position for this player's seat
+        const seatPositions = {
+          1: { x: 0, y: 180 }, // Bottom - closer
+          2: { x: -250, y: 0 }, // Left - closer
+          3: { x: 0, y: -180 }, // Top - closer
+          4: { x: 250, y: 0 }, // Right - closer
+        };
+
+        const targetPos =
+          seatPositions[playerSeat as keyof typeof seatPositions];
+        if (!targetPos) return;
+
+        // Create new dealing card animation for this specific player
+        const newCard = {
+          id: `deal-${playerSeat}-${Date.now()}-${Math.random()}`,
+          targetSeat: playerSeat,
+          startTime: Date.now(),
+          position: { x: 0, y: 0 },
+          opacity: 1,
+        };
+
+        setDealingCards((prev) => [...prev, newCard]);
+
+        // Stop any existing card deal sound and play new one with slight delay for staggering
+        stopCardDeal();
+        const soundDelay = (playerSeat - 1) * 25; // 25ms offset per seat
+        setTimeout(() => {
+          playCardDeal().catch(console.warn);
+        }, soundDelay);
+
+        // Use a small timeout instead of requestAnimationFrame to ensure state is updated
+        setTimeout(() => {
+          setDealingCards((prev) =>
+            prev.map((card) =>
+              card.id === newCard.id
+                ? { ...card, position: targetPos, opacity: 0.3 }
+                : card
+            )
+          );
+        }, 50);
+
+        // Fallback cleanup after animation duration + buffer
+        setTimeout(() => {
+          setDealingCards((prev) =>
+            prev.filter((card) => card.id !== newCard.id)
+          );
+        }, 270); // 50ms delay + 120ms animation + 100ms buffer
+      }
+    };
+
+    // Listen for game events
+    socket.on("gameEvent", handleCardDealt);
+
+    return () => {
+      socket.off("gameEvent", handleCardDealt);
+    };
+  }, [socket, isDealing, playCardDeal, stopCardDeal]);
 
   // Find the local player's seat
   const currentPlayer = room.players?.find((p) => p.id === currentPlayerId);
@@ -156,26 +260,27 @@ export default function GameTable({
           </div>
         )}
 
-        {/* Enhanced dealing animation with modern cards */}
+        {/* Enhanced dealing animation with smaller deck and sound */}
         {isDealing && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center">
-            <div className="relative animate-pulse">
-              <div className="absolute -left-2 -top-2 opacity-30">
+            <div className="relative dealing-deck animate-deck-pulse">
+              {/* Smaller deck stack effect */}
+              <div className="absolute -left-1 -top-1 opacity-20">
                 <Image
                   src="/cards/back.png"
                   alt="Deck"
-                  width={72}
-                  height={100}
+                  width={50}
+                  height={70}
                   style={{ width: "auto", height: "auto" }}
                   className="rounded-lg shadow-lg"
                 />
               </div>
-              <div className="absolute -left-1 -top-1 opacity-60">
+              <div className="absolute -left-0.5 -top-0.5 opacity-40">
                 <Image
                   src="/cards/back.png"
                   alt="Deck"
-                  width={72}
-                  height={100}
+                  width={50}
+                  height={70}
                   style={{ width: "auto", height: "auto" }}
                   className="rounded-lg shadow-lg"
                 />
@@ -183,19 +288,48 @@ export default function GameTable({
               <Image
                 src="/cards/back.png"
                 alt="Deck"
-                width={72}
-                height={100}
+                width={50}
+                height={70}
                 style={{ width: "auto", height: "auto" }}
-                className="rounded-lg drop-shadow-2xl animate-bounce relative z-10"
+                className="rounded-lg drop-shadow-2xl relative z-10"
               />
             </div>
             {dealerSeat && (
-              <span className="mt-4 text-yellow-300 font-bold text-sm sm:text-base bg-black/80 px-4 py-2 rounded-full border border-yellow-600 shadow-xl backdrop-blur-sm">
+              <span className="mt-2 text-yellow-300 font-bold text-xs sm:text-sm bg-black/80 px-3 py-1 rounded-full border border-yellow-600 shadow-xl backdrop-blur-sm">
                 Dealer: Seat {dealerSeat}
               </span>
             )}
           </div>
         )}
+
+        {/* Animated dealing cards flying to players - optimized with smooth transitions */}
+        {dealingCards.map((card) => (
+          <div
+            key={card.id}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40"
+            style={{
+              transform: `translate(calc(-50% + ${
+                card.position.x
+              }px), calc(-50% + ${card.position.y}px)) scale(${
+                card.position.x === 0 && card.position.y === 0 ? "1.1" : "1"
+              })`,
+              opacity: card.opacity,
+              transition: "transform 120ms ease-out, opacity 120ms ease-out",
+              filter:
+                card.position.x === 0 && card.position.y === 0
+                  ? "drop-shadow(0 8px 16px rgba(0,0,0,0.3))"
+                  : "drop-shadow(0 4px 8px rgba(0,0,0,0.2))",
+            }}
+          >
+            <Image
+              src="/cards/back.png"
+              alt="Dealing card"
+              width={56}
+              height={80}
+              className="rounded-lg shadow-lg"
+            />
+          </div>
+        ))}
 
         {/* Improved play area with proper spacing */}
         <div className="absolute inset-[15%] sm:inset-[12%] md:inset-[15%] lg:inset-[18%] flex items-center justify-center">
