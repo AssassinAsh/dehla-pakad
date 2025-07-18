@@ -204,14 +204,27 @@ export default function setupSocketIO(server) {
         }
 
         // Check if player already exists in room (reconnection case)
-        const existingPlayer = room.players.find((p) => p.name === playerName);
+        // First try to find by socket ID (for quick reconnections), then by name
+        let existingPlayer = room.players.find((p) => p.id === socket.id);
+        if (!existingPlayer) {
+          // Fallback to name-based lookup for longer disconnections
+          // but only if the name is unique in the room
+          const playersWithSameName = room.players.filter(
+            (p) => p.name === playerName
+          );
+          if (playersWithSameName.length === 1) {
+            existingPlayer = playersWithSameName[0];
+          }
+          // If multiple players have the same name, we can't reliably reconnect by name
+          // so we'll treat this as a new player joining
+        }
 
         if (existingPlayer) {
           // If player exists and is trying to select a seat
           if (seatNumber !== null && existingPlayer.seat !== seatNumber) {
             // Check if the new seat is available
             const seatTaken = room.players.some(
-              (p) => p.seat === seatNumber && p.name !== playerName
+              (p) => p.seat === seatNumber && p.id !== existingPlayer.id
             );
             if (seatTaken) {
               if (typeof callback === "function") callback(false);
@@ -479,6 +492,14 @@ export default function setupSocketIO(server) {
           return socket.emit("error", "It's not your turn.");
         }
 
+        // Prevent card plays during stack collection
+        if (room.gameState?.isCollectingStack) {
+          return socket.emit(
+            "error",
+            "Please wait while the stack is being collected."
+          );
+        }
+
         const cardIndex = player.hand.findIndex((c) => c.id === actualCardId);
         if (cardIndex === -1) {
           return socket.emit("error", "Invalid card played.");
@@ -611,8 +632,9 @@ export default function setupSocketIO(server) {
     });
 
     // Handle player ready event
-    socket.on("playerReady", async (roomId, playerName) => {
-      const set = await RoomManager.setPlayerReady(roomId, playerName, true);
+    socket.on("playerReady", async (roomId) => {
+      // Use socket ID instead of player name for internal operations
+      const set = await RoomManager.setPlayerReady(roomId, socket.id, true);
       if (set) {
         const room = await RoomManager.getRoom(roomId);
         emitRoomUpdate(roomId, io);
@@ -742,7 +764,7 @@ export default function setupSocketIO(server) {
         // Use enhanced replay system
         const result = await RoomManager.handleReplayRequest(
           roomId,
-          player.name,
+          socket.id, // Use socket ID instead of player name
           io
         );
 

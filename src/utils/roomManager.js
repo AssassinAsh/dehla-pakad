@@ -74,7 +74,7 @@ export class RoomManager {
     const room = {
       id: roomId,
       players: [firstPlayer],
-      host: firstPlayer.name,
+      host: firstPlayer.id, // Use socket ID internally for host
       gameStarted: false,
       gameState: {
         status: "waiting", // 'waiting', 'in-progress', 'finished'
@@ -86,6 +86,7 @@ export class RoomManager {
           team2: { tricks: 0, tens: 0 },
         },
         lastTrickWinnerSeat: null,
+        isCollectingStack: false, // Prevent card plays during stack collection
       },
       deck: [],
       currentTrick: [],
@@ -207,7 +208,7 @@ export class RoomManager {
 
     // Check if the player being removed is the host
     const removedPlayer = room.players.find((p) => p.id === playerId);
-    const isHostLeaving = removedPlayer && room.host === removedPlayer.name;
+    const isHostLeaving = removedPlayer && room.host === removedPlayer.id;
     const isDealerLeaving =
       removedPlayer && room.dealerSeat === removedPlayer.seat;
 
@@ -221,7 +222,7 @@ export class RoomManager {
     } else {
       // If host left, transfer host to next player (by join order)
       if (isHostLeaving) {
-        room.host = room.players.length > 0 ? room.players[0].name : undefined;
+        room.host = room.players.length > 0 ? room.players[0].id : undefined;
       }
 
       // If dealer left, reassign dealer to next occupied seat
@@ -330,10 +331,19 @@ export class RoomManager {
     }
   }
 
-  static async addReplayVote(roomId, playerName) {
+  static async addReplayVote(roomId, playerIdentifier) {
     const room = await this.getRoom(roomId);
     if (room) {
-      room.replayVotes.add(playerName);
+      // Use socket ID for replay votes to avoid duplicate name issues
+      let playerId = playerIdentifier;
+
+      // If playerIdentifier is a name, convert to socket ID
+      const player = room.players.find((p) => p.name === playerIdentifier);
+      if (player) {
+        playerId = player.id;
+      }
+
+      room.replayVotes.add(playerId);
       await this.updateRoom(roomId, room);
     }
   }
@@ -351,12 +361,19 @@ export class RoomManager {
     return room ? room.replayVotes : new Set();
   }
 
-  static async setPlayerReady(roomId, playerName, ready) {
+  static async setPlayerReady(roomId, playerIdentifier, ready) {
     const room = await this.getRoom(roomId);
     if (room) {
-      const player = room.players.find(
-        (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
-      );
+      // Try to find player by socket ID first, then by name for backward compatibility
+      let player = room.players.find((p) => p.id === playerIdentifier);
+      if (!player) {
+        // Fallback to name-based lookup (case-insensitive)
+        player = room.players.find(
+          (p) =>
+            p.name.trim().toLowerCase() ===
+            playerIdentifier.trim().toLowerCase()
+        );
+      }
       if (player) {
         player.isReady = ready;
         await this.updateRoom(roomId, room);
@@ -379,6 +396,21 @@ export class RoomManager {
     return (
       room && room.players.length === 4 && room.players.every((p) => p.isReady)
     );
+  }
+
+  // Helper method to get host name for display (while using socket ID internally)
+  static async getHostName(roomId) {
+    const room = await this.getRoom(roomId);
+    if (!room || !room.host) return null;
+
+    const hostPlayer = room.players.find((p) => p.id === room.host);
+    return hostPlayer ? hostPlayer.name : null;
+  }
+
+  // Helper method to check if a player is the host (by socket ID)
+  static async isPlayerHost(roomId, playerId) {
+    const room = await this.getRoom(roomId);
+    return room && room.host === playerId;
   }
 
   // Metrics collection methods
@@ -446,9 +478,18 @@ export class RoomManager {
     return room ? room.gameMode : "private";
   }
 
-  static async handleReplayRequest(roomId, playerName, io) {
+  static async handleReplayRequest(roomId, playerIdentifier, io) {
     const room = await this.getRoom(roomId);
     if (!room) return { success: false, message: "Room not found" };
+
+    // Find player by ID first, then by name for backward compatibility
+    let player = room.players.find((p) => p.id === playerIdentifier);
+    if (!player) {
+      player = room.players.find((p) => p.name === playerIdentifier);
+    }
+    if (!player) {
+      return { success: false, message: "Player not found in room" };
+    }
 
     const gameMode = room.gameMode || "private";
 
@@ -457,13 +498,13 @@ export class RoomManager {
         return await this.handleQuickBotsReplay(roomId, io);
 
       case "private":
-        return await this.handlePrivateRoomReplay(roomId, playerName, io);
+        return await this.handlePrivateRoomReplay(roomId, player, io);
 
       case "lobby":
-        return await this.handleLobbyReplay(roomId, playerName, io);
+        return await this.handleLobbyReplay(roomId, player, io);
 
       default:
-        return await this.handleDefaultReplay(roomId, playerName, io);
+        return await this.handleDefaultReplay(roomId, player, io);
     }
   }
 
@@ -495,17 +536,17 @@ export class RoomManager {
     return { success: false, message: "Failed to restart game" };
   }
 
-  static async handlePrivateRoomReplay(roomId, playerName, io) {
+  static async handlePrivateRoomReplay(roomId, player, io) {
     const room = await this.getRoom(roomId);
     if (!room) return { success: false, message: "Room not found" };
 
-    // Only host can initiate replay in private rooms
-    if (room.host !== playerName) {
+    // Only host can initiate replay in private rooms (compare by socket ID)
+    if (room.host !== player.id) {
       // Non-host players get added to a waiting list
-      room.replayState.votes.add(playerName);
+      room.replayState.votes.add(player.id);
       io.to(roomId).emit("replayRequestReceived", {
-        requester: playerName,
-        message: `${playerName} wants to play again. Waiting for host decision.`,
+        requester: player.name, // Show name to users
+        message: `${player.name} wants to play again. Waiting for host decision.`,
       });
       return { success: true, message: "Replay request sent to host" };
     }
@@ -532,15 +573,9 @@ export class RoomManager {
     return { success: false, message: "Failed to restart game" };
   }
 
-  static async handleLobbyReplay(roomId, playerName, io) {
+  static async handleLobbyReplay(roomId, player, io) {
     const room = await this.getRoom(roomId);
     if (!room) return { success: false, message: "Room not found" };
-
-    // Find the player who wants to replay
-    const player = room.players.find((p) => p.name === playerName);
-    if (!player) {
-      return { success: false, message: "Player not found in room" };
-    }
 
     // Immediately add player to matchmaking queue for lobby games
     const { MatchmakingQueue } = await import("./matchmakingQueue.js");
@@ -598,15 +633,15 @@ export class RoomManager {
     }
   }
 
-  static handleDefaultReplay(roomId, playerName, io) {
+  static async handleDefaultReplay(roomId, player, io) {
     // Fallback to original replay system
-    this.addReplayVote(roomId, playerName);
-    const replayVotes = this.getReplayVotes(roomId);
-    const room = rooms.get(roomId);
+    await this.addReplayVote(roomId, player.id);
+    const replayVotes = await this.getReplayVotes(roomId);
+    const room = await this.getRoom(roomId);
     const humanPlayers = room.players.filter((p) => !p.isBot).length;
 
     if (replayVotes.size >= humanPlayers) {
-      const success = this.resetGameState(roomId);
+      const success = await this.resetGameState(roomId);
       if (success) {
         io.to(roomId).emit("gameRestarted", {
           message: "All players voted for replay!",
@@ -637,6 +672,7 @@ export class RoomManager {
         },
         remainingDeck: [],
         status: "waiting",
+        isCollectingStack: false, // Initialize collection flag
       };
 
       // Reset room state

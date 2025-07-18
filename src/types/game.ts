@@ -82,6 +82,7 @@ export interface GameState {
   dealing?: boolean;
   status?: "waiting" | "in-progress" | "finished";
   trumpJustSet?: boolean;
+  isCollectingStack?: boolean; // Flag to prevent card plays during stack collection
 }
 
 export interface RoomSummary {

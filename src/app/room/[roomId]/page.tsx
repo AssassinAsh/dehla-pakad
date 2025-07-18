@@ -232,7 +232,8 @@ export default function RoomPage() {
           });
 
           // If we're already in the player list, update our current player
-          const me = updated.players?.find((p) => p.name === playerName);
+          // Use socket ID for identification to handle duplicate names
+          const me = updated.players?.find((p) => p.id === newSocket.id);
           if (me) {
             setCurrentPlayer(me);
           }
@@ -251,11 +252,11 @@ export default function RoomPage() {
             playerSeat: number;
           }) => {
             if (data.tensCount > 0) {
-              // Use a more reliable way to get current player info
+              // Use a more reliable way to get current player info using socket ID
               setRoom((currentRoom) => {
-                if (currentRoom) {
+                if (currentRoom && newSocket.id) {
                   const currentPlayerInRoom = currentRoom.players?.find(
-                    (p: Player) => p.name === playerName
+                    (p: Player) => p.id === newSocket.id
                   );
                   const mySeat = currentPlayerInRoom?.seat;
                   const myTeam =
@@ -412,6 +413,12 @@ export default function RoomPage() {
       return;
     }
 
+    // Prevent card plays during stack collection
+    if (room.gameState?.isCollectingStack) {
+      showError("Please wait while the stack is being collected.");
+      return;
+    }
+
     // Set playing flag to prevent multiple rapid plays
     setIsPlayingCard(true);
 
@@ -469,7 +476,8 @@ export default function RoomPage() {
     currentPlayer &&
     room &&
     room.gameState.status === "in-progress" &&
-    room.currentPlayer === currentPlayer.seat;
+    room.currentPlayer === currentPlayer.seat &&
+    !room.gameState?.isCollectingStack; // Prevent plays during stack collection
 
   const [showReplayModal, setShowReplayModal] = useState(false);
   const [endgameResult, setEndgameResult] = useState<null | {
@@ -548,11 +556,13 @@ export default function RoomPage() {
 
   // Add handler for Ready button
   const handleReady = () => {
-    if (socketRef.current && room && currentPlayer) {
+    if (socketRef.current && room) {
       // Initialize audio when player clicks ready
       initializeAudio().catch(console.warn);
 
-      socketRef.current.emit("playerReady", room.id, currentPlayer.name);
+      // Use socket ID instead of player name for ready system
+      // This fixes issues with duplicate names
+      socketRef.current.emit("playerReady", room.id);
     }
   };
 
@@ -634,7 +644,7 @@ export default function RoomPage() {
                     votesNeeded: room.replayState.votesNeeded,
                     currentVotes: room.replayState.votes.size,
                     isWaitingForVotes: room.replayState.isReplayInProgress,
-                    isHost: room.host === currentPlayer.name,
+                    isHost: room.host === currentPlayer.id,
                   }
                 : undefined
             }
@@ -661,7 +671,7 @@ export default function RoomPage() {
             currentPlayerId={currentPlayer?.id}
             onSeatClick={joinSeat}
             onAddBot={handleAddBot}
-            isHost={currentPlayer?.name === room.host}
+            isHost={currentPlayer?.id === room.host}
             socket={socketRef.current || undefined}
           />
 

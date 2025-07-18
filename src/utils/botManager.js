@@ -568,6 +568,9 @@ export class BotManager {
     if (trickWinnerSeat === room.gameState.lastTrickWinnerSeat || isLastTrick) {
       // Consecutive win OR last trick: Collect the stack
 
+      // IMPORTANT: Set collecting flag to prevent premature card plays
+      room.gameState.isCollectingStack = true;
+
       // Phase 1: Add current trick to stack for visual effect
       room.stackedTricks.push(completedTrick);
 
@@ -623,7 +626,10 @@ export class BotManager {
 
           room.stackedTricks = []; // Clear the stack after collection
           room.gameState.lastTrickWinnerSeat = null; // Reset for next stack
+
+          // IMPORTANT: Set the next player and clear collecting flag together
           room.currentPlayer = trickWinnerSeat; // Set next player
+          room.gameState.isCollectingStack = false; // Allow card plays again
 
           // Update room after stack collection
           RoomManager.updateRoom(roomId, room);
@@ -722,6 +728,7 @@ export class BotManager {
       // Wait before clearing the trick and setting next player
       setTimeout(() => {
         room.currentTrick = [];
+        // Set next player immediately for non-consecutive wins (no collection delay)
         room.currentPlayer = trickWinnerSeat;
 
         // Check if we need to deal remaining cards

@@ -459,7 +459,6 @@ export default function Home() {
                                 </h3>
                                 <p className="text-xs text-dp-neon/60 mb-3 leading-relaxed">
                                   Play instantly offline against AI opponents.
-                                  No internet required!
                                 </p>
 
                                 <button

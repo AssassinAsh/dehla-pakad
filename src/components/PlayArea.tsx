@@ -20,9 +20,14 @@ const cardPositions = [
 interface DroppablePlayAreaProps {
   children: React.ReactNode;
   isMyTurn: boolean;
+  isCollectingStack?: boolean; // Add collecting state for visual feedback
 }
 
-function DroppablePlayArea({ children, isMyTurn }: DroppablePlayAreaProps) {
+function DroppablePlayArea({
+  children,
+  isMyTurn,
+  isCollectingStack = false,
+}: DroppablePlayAreaProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: "play-area",
     disabled: !isMyTurn,
@@ -51,6 +56,8 @@ function DroppablePlayArea({ children, isMyTurn }: DroppablePlayAreaProps) {
         ${
           isOver
             ? "bg-gradient-to-br from-yellow-500/30 via-yellow-400/20 to-amber-500/30 shadow-[0_0_25px_rgba(255,215,0,0.8)] border-yellow-300 border-4"
+            : isCollectingStack
+            ? "bg-gradient-to-br from-purple-900/40 via-purple-800/30 to-indigo-900/40 shadow-[0_0_15px_rgba(147,51,234,0.5)] border-purple-400 border-3 animate-pulse"
             : isMyTurn
             ? "bg-gradient-to-br from-emerald-900/40 via-green-800/30 to-teal-900/40 shadow-[0_0_15px_rgba(52,211,153,0.5)] border-emerald-400 border-3 animate-pulse"
             : "bg-gradient-to-br from-green-900/20 via-emerald-900/15 to-green-800/20 border-green-600/60 border-2"
@@ -63,6 +70,10 @@ function DroppablePlayArea({ children, isMyTurn }: DroppablePlayAreaProps) {
             }px rgba(255,215,0,0.${
               6 + pulseIntensity / 20
             }), inset 0 0 30px rgba(255,215,0,0.1)`
+          : isCollectingStack
+          ? `0 0 15px 3px rgba(147,51,234,0.${
+              4 + Math.sin(Date.now() / 400) * 2
+            }), inset 0 0 20px rgba(147,51,234,0.05)`
           : isMyTurn
           ? `0 0 15px 3px rgba(52,211,153,0.${
               4 + Math.sin(Date.now() / 600) * 2
@@ -86,10 +97,14 @@ export default function PlayArea({ room, mySeat }: PlayAreaProps) {
   const currentPlayer = room.players?.find(
     (p) => p.seat === room.currentPlayer
   );
-  const isMyTurn = currentPlayer?.seat === mySeat;
+  const isMyTurn =
+    currentPlayer?.seat === mySeat && !room.gameState?.isCollectingStack;
 
   return (
-    <DroppablePlayArea isMyTurn={isMyTurn}>
+    <DroppablePlayArea
+      isMyTurn={isMyTurn}
+      isCollectingStack={room.gameState?.isCollectingStack}
+    >
       <div className="w-full h-full relative">
         {/* Enhanced stacked tricks with modern styling */}
         {room.stackedTricks && room.stackedTricks.length > 0 && (
