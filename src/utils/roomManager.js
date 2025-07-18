@@ -76,6 +76,7 @@ export class RoomManager {
       players: [firstPlayer],
       host: firstPlayer.id, // Use socket ID internally for host
       gameStarted: false,
+      createdAt: new Date(), // Add timestamp for cleanup
       gameState: {
         status: "waiting", // 'waiting', 'in-progress', 'finished'
         trump: null,
@@ -436,6 +437,69 @@ export class RoomManager {
       metrics.setPlayersWaiting(playersWaiting);
     } catch (error) {
       console.error("Error updating metrics:", error);
+    }
+  }
+
+  // Cleanup stale rooms periodically
+  static async cleanupStaleRooms() {
+    console.log("Running periodic room cleanup...");
+    const now = Date.now();
+    const staleThreshold = 30 * 60 * 1000; // 30 minutes
+    const emptyRoomThreshold = 10 * 60 * 1000; // 10 minutes for empty rooms
+
+    let cleanedRooms = 0;
+    const allRooms = Array.from(rooms.entries());
+
+    for (const [roomId, room] of allRooms) {
+      let shouldRemove = false;
+      let reason = "";
+
+      // Check for completely empty rooms
+      if (room.players.length === 0) {
+        const roomAge = now - new Date(room.createdAt || 0).getTime();
+        if (roomAge > emptyRoomThreshold) {
+          shouldRemove = true;
+          reason = "empty room timeout";
+        }
+      }
+
+      // Check for rooms with only disconnected players
+      const connectedPlayers = room.players.filter((p) => p.isConnected).length;
+      if (connectedPlayers === 0 && room.players.length > 0) {
+        const roomAge = now - new Date(room.createdAt || 0).getTime();
+        if (roomAge > staleThreshold) {
+          shouldRemove = true;
+          reason = "all players disconnected";
+        }
+      }
+
+      // Check for very old finished games
+      if (room.gameState?.status === "finished") {
+        const roomAge = now - new Date(room.createdAt || 0).getTime();
+        if (roomAge > staleThreshold) {
+          shouldRemove = true;
+          reason = "finished game timeout";
+        }
+      }
+
+      if (shouldRemove) {
+        console.log(`Cleaning up stale room ${roomId}: ${reason}`);
+
+        // Track cleanup metrics
+        metrics.incrementRoomsCleaned(reason.replace(/ /g, "_"));
+
+        // Clean up associated data
+        BotManager.cleanupRoom(roomId);
+
+        // Remove from storage
+        await this.removeRoom(roomId);
+        cleanedRooms++;
+      }
+    }
+
+    if (cleanedRooms > 0) {
+      console.log(`Cleaned up ${cleanedRooms} stale rooms`);
+      this.updateMetrics();
     }
   }
 

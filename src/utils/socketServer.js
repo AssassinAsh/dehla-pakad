@@ -56,15 +56,15 @@ function dealCardsOptimized(
       if (dealCount >= totalCards) {
         // Dealing phase complete
         BotManager.updateBotHands(roomId, room);
+
+        // Store remaining cards in room
+        room.deck = deck;
+
         RoomManager.updateRoom(roomId, room);
 
         if (cardsPerPlayer === 5) {
           // After initial dealing, set first player
           room.firstPlayerThisRound = dealingOrder[0];
-          BotManager.validateDealingMath(room, "after-initial-dealing");
-        } else {
-          // After final dealing, validate completion
-          BotManager.validateDealingMath(room, "after-full-dealing");
         }
 
         return resolve();
@@ -143,6 +143,15 @@ export default function setupSocketIO(server) {
       console.error("Error updating periodic metrics:", error);
     }
   }, 30000);
+
+  // Set up periodic room cleanup every 5 minutes
+  setInterval(() => {
+    try {
+      RoomManager.cleanupStaleRooms();
+    } catch (error) {
+      console.error("Error during periodic room cleanup:", error);
+    }
+  }, 300000); // 5 minutes
 
   io.on("connection", (socket) => {
     // Increment connection count and update metrics
@@ -592,7 +601,7 @@ export default function setupSocketIO(server) {
 
           // Set current player to the one who got the first card (clockwise from dealer)
           room.currentPlayer = room.firstPlayerThisRound;
-          room.deck = deck; // Store remaining deck
+          // Note: room.deck is already set in dealCardsOptimized
 
           // Clear dealing flag and update room
           await RoomManager.setDealing(roomId, false);
@@ -669,7 +678,7 @@ export default function setupSocketIO(server) {
 
             // Set current player to the one who got the first card (clockwise from dealer)
             room.currentPlayer = room.firstPlayerThisRound;
-            room.deck = deck;
+            // Note: room.deck is already set in dealCardsOptimized
 
             // Clear dealing flag after dealing is complete
             await RoomManager.setDealing(roomId, false);

@@ -108,6 +108,14 @@ const activeBotsGauge = new client.Gauge({
   registers: [register],
 });
 
+// Room cleanup metrics
+const roomsCleanedCounter = new client.Counter({
+  name: "dehla_pakad_rooms_cleaned_total",
+  help: "Total number of rooms cleaned up",
+  labelNames: ["reason"],
+  registers: [register],
+});
+
 // Metrics update functions
 const metrics = {
   // Gauge updates
@@ -127,6 +135,7 @@ const metrics = {
     errorCountCounter.inc({ error_type: errorType, component }),
   incrementRedisOperations: (operation, status) =>
     redisOperationsCounter.inc({ operation, status }),
+  incrementRoomsCleaned: (reason) => roomsCleanedCounter.inc({ reason }),
 
   // Histogram observations
   observeResponseTime: (seconds) => responseTimeHistogram.observe(seconds),

@@ -121,19 +121,32 @@ export class BotManager {
 
   // Deal remaining 32 cards to all players (8 cards each) using optimized dealing
   static dealRemainingCards(roomId, room, io) {
+    // Prevent multiple simultaneous dealing operations
+    if (room.isCurrentlyDealing) {
+      return;
+    }
+
     const deck = [...room.deck];
-    room.deck = [];
+
+    if (!deck || deck.length === 0) {
+      return;
+    }
+
+    room.deck = []; // Clear deck as we'll distribute all remaining cards
+    room.isCurrentlyDealing = true; // Set dealing guard
 
     // Set dealing state to true for animation
     RoomManager.setDealing(roomId, true);
 
-    // Get dealing order (clockwise from current player or seat 1 if none)
+    // Get dealing order (clockwise from dealer, not current player)
     const getDealingOrder = () => {
-      const startSeat = room.currentPlayer || 1;
+      // Use dealer seat if available, otherwise start from seat 1
+      const dealerSeat = room.dealerSeat || 1;
       const order = [];
-      for (let i = 0; i < 4; i++) {
-        const seat = ((startSeat - 1 + i) % 4) + 1;
-        order.push(seat);
+      for (let i = 1; i <= 4; i++) {
+        const seat = (dealerSeat % 4) + i; // Start from next seat clockwise
+        const adjustedSeat = seat > 4 ? seat - 4 : seat;
+        order.push(adjustedSeat);
       }
       return order;
     };
@@ -145,8 +158,10 @@ export class BotManager {
 
     const dealNext = () => {
       if (dealCount >= totalCards) {
-        // Finished dealing remaining cards - each player should now have 13 cards total
-        this.validateDealingMath(room, "after-full-dealing");
+        // Finished dealing remaining cards
+
+        // Clear dealing guards
+        room.isCurrentlyDealing = false;
 
         // Set dealing state back to false
         RoomManager.setDealing(roomId, false);
@@ -768,13 +783,6 @@ export class BotManager {
         }
       }
     });
-  }
-
-  // Simple validation - just check the math is right
-  static validateDealingMath(room, phase) {
-    // Silent validation - just ensure the function exists for compatibility
-    // Card dealing integrity is maintained through proper game logic
-    return room && phase; // Basic existence check without logging
   }
 
   // Clean up bots when room is deleted
