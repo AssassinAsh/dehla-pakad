@@ -47,6 +47,8 @@ function SearchParamsHandler({
 export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isJoiningLobby, setIsJoiningLobby] = useState(false);
+  const [isStartingBotGame, setIsStartingBotGame] = useState(false);
   const [showPrivateRoomOptions, setShowPrivateRoomOptions] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -55,6 +57,9 @@ export default function Home() {
   const [joinRoomError, setJoinRoomError] = useState("");
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<
+    "disconnected" | "connecting" | "connected"
+  >("disconnected");
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
 
@@ -72,6 +77,27 @@ export default function Home() {
       localStorage.setItem("playerName", playerName);
     }
   }, [playerName]);
+
+  // Preconnect socket when user starts typing their name
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setPlayerName(name);
+
+    // Preconnect socket when user has typed a few characters
+    if (name.length >= 2 && !lazySocket.isConnected()) {
+      setConnectionStatus("connecting");
+      lazySocket.preconnect();
+
+      // Check connection status after a delay
+      setTimeout(() => {
+        if (lazySocket.isConnected()) {
+          setConnectionStatus("connected");
+        } else {
+          setConnectionStatus("disconnected");
+        }
+      }, 2000);
+    }
+  };
 
   const createRoom = async () => {
     if (!playerName.trim()) {
@@ -170,6 +196,8 @@ export default function Home() {
       return;
     }
 
+    setIsStartingBotGame(true);
+
     // Check if we're online or offline
     const isOnline = navigator.onLine;
 
@@ -197,11 +225,20 @@ export default function Home() {
       try {
         const socket = await lazySocket.getSocket();
 
+        // Add timeout to prevent infinite waiting
+        const timeoutId = setTimeout(() => {
+          setIsStartingBotGame(false);
+          alert("Bot game creation timed out. Please try again.");
+        }, 8000);
+
         // Use existing createBotGame handler for instant bot game
         socket.emit(
           "createBotGame",
           playerName.trim(),
           (response: { status: string; roomId?: string; message?: string }) => {
+            clearTimeout(timeoutId);
+            setIsStartingBotGame(false);
+
             if (response && response.status === "matched" && response.roomId) {
               router.push(
                 `/room/${response.roomId}?name=${encodeURIComponent(
@@ -214,12 +251,15 @@ export default function Home() {
             }
           }
         );
-      } catch {
+      } catch (error) {
+        console.error("Error starting bot game:", error);
+        setIsStartingBotGame(false);
         // Online computer game failed, falling back to offline
         setIsOfflineMode(true);
       }
     } else {
       // Offline: Use cached offline mode
+      setIsStartingBotGame(false);
       setIsOfflineMode(true);
     }
   };
@@ -230,8 +270,19 @@ export default function Home() {
       return;
     }
 
-    // Immediately show the matchmaking modal - the modal will handle joining
-    setIsMatchmakingModalOpen(true);
+    setIsJoiningLobby(true);
+    try {
+      // Pre-connect socket to reduce delay
+      await lazySocket.getSocket();
+
+      // Immediately show the matchmaking modal - the modal will handle joining
+      setIsMatchmakingModalOpen(true);
+    } catch (error) {
+      console.error("Error connecting for lobby:", error);
+      alert("Connection error. Please try again.");
+    } finally {
+      setIsJoiningLobby(false);
+    }
   };
 
   return (
@@ -388,10 +439,34 @@ export default function Home() {
                             type="text"
                             placeholder="Enter your name"
                             value={playerName}
-                            onChange={(e) => setPlayerName(e.target.value)}
+                            onChange={handleNameChange}
                             className="w-full px-4 py-3 bg-[#040e16] border border-dp-cardBorder/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-dp-neon focus:border-transparent transition-all text-dp-neon placeholder-dp-neon/40 font-medium backdrop-blur-sm"
                           />
                           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-dp-neon/5 to-transparent pointer-events-none"></div>
+
+                          {/* Connection Status Indicator */}
+                          {playerName.length >= 2 && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              {connectionStatus === "connected" && (
+                                <div
+                                  className="w-2 h-2 bg-green-400 rounded-full animate-pulse"
+                                  title="Connected"
+                                ></div>
+                              )}
+                              {connectionStatus === "connecting" && (
+                                <div
+                                  className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"
+                                  title="Connecting..."
+                                ></div>
+                              )}
+                              {connectionStatus === "disconnected" && (
+                                <div
+                                  className="w-2 h-2 bg-gray-400 rounded-full"
+                                  title="Offline"
+                                ></div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -423,10 +498,38 @@ export default function Home() {
 
                                 <button
                                   onClick={playOnline}
-                                  disabled={!playerName.trim()}
-                                  className="w-full bg-gradient-to-r from-dp-neon to-blue-400 text-[#0D1117] font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-neon/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+                                  disabled={
+                                    !playerName.trim() || isJoiningLobby
+                                  }
+                                  className="w-full bg-gradient-to-r from-dp-neon to-blue-400 text-[#0D1117] font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-neon/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm flex items-center justify-center"
                                 >
-                                  Join Lobby
+                                  {isJoiningLobby ? (
+                                    <>
+                                      <svg
+                                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <circle
+                                          className="opacity-25"
+                                          cx="12"
+                                          cy="12"
+                                          r="10"
+                                          stroke="currentColor"
+                                          strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                          className="opacity-75"
+                                          fill="currentColor"
+                                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                      </svg>
+                                      Connecting...
+                                    </>
+                                  ) : (
+                                    "Join Lobby"
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -463,10 +566,38 @@ export default function Home() {
 
                                 <button
                                   onClick={playWithComputer}
-                                  disabled={!playerName.trim()}
-                                  className="w-full bg-gradient-to-r from-purple-500 to-dp-neon text-white font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+                                  disabled={
+                                    !playerName.trim() || isStartingBotGame
+                                  }
+                                  className="w-full bg-gradient-to-r from-purple-500 to-dp-neon text-white font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm flex items-center justify-center"
                                 >
-                                  Start Computer Game
+                                  {isStartingBotGame ? (
+                                    <>
+                                      <svg
+                                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <circle
+                                          className="opacity-25"
+                                          cx="12"
+                                          cy="12"
+                                          r="10"
+                                          stroke="currentColor"
+                                          strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                          className="opacity-75"
+                                          fill="currentColor"
+                                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                      </svg>
+                                      Starting...
+                                    </>
+                                  ) : (
+                                    "Start Computer Game"
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -509,11 +640,35 @@ export default function Home() {
                                     disabled={
                                       isCreatingRoom || !playerName.trim()
                                     }
-                                    className="bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2.5 px-2 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-xs"
+                                    className="bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2.5 px-2 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-xs flex items-center justify-center"
                                   >
-                                    {isCreatingRoom
-                                      ? "Creating..."
-                                      : "Create Room"}
+                                    {isCreatingRoom ? (
+                                      <>
+                                        <svg
+                                          className="animate-spin -ml-1 mr-1 h-3 w-3 text-current"
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                          ></circle>
+                                          <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                          ></path>
+                                        </svg>
+                                        Creating...
+                                      </>
+                                    ) : (
+                                      "Create Room"
+                                    )}
                                   </button>
                                   <button
                                     onClick={() =>
@@ -564,11 +719,35 @@ export default function Home() {
                                           !playerName.trim() ||
                                           isJoiningRoom
                                         }
-                                        className="w-full bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+                                        className="w-full bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm flex items-center justify-center"
                                       >
-                                        {isJoiningRoom
-                                          ? "Checking Room..."
-                                          : "Join Room"}
+                                        {isJoiningRoom ? (
+                                          <>
+                                            <svg
+                                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                            >
+                                              <circle
+                                                className="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                strokeWidth="4"
+                                              ></circle>
+                                              <path
+                                                className="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                              ></path>
+                                            </svg>
+                                            Checking Room...
+                                          </>
+                                        ) : (
+                                          "Join Room"
+                                        )}
                                       </button>
                                       {joinRoomError && (
                                         <div className="text-dp-heart text-xs font-semibold text-center bg-dp-heart/10 py-2 px-2 rounded-lg border border-dp-heart/20">
@@ -653,7 +832,6 @@ export default function Home() {
                       </h2>
                       <div className="w-16 h-0.5 bg-gradient-to-r from-dp-neon to-dp-heart rounded-full mx-auto"></div>
                     </div>
-
                     {/* Enhanced Name Input */}
                     <div className="mb-6">
                       <div className="relative">
@@ -661,13 +839,36 @@ export default function Home() {
                           type="text"
                           placeholder="Enter your name"
                           value={playerName}
-                          onChange={(e) => setPlayerName(e.target.value)}
+                          onChange={handleNameChange}
                           className="w-full px-4 py-3 bg-[#040e16] border border-dp-cardBorder/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-dp-neon focus:border-transparent transition-all text-dp-neon placeholder-dp-neon/40 font-medium backdrop-blur-sm"
                         />
                         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-dp-neon/5 to-transparent pointer-events-none"></div>
-                      </div>
-                    </div>
 
+                        {/* Connection Status Indicator */}
+                        {playerName.length >= 2 && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            {connectionStatus === "connected" && (
+                              <div
+                                className="w-2 h-2 bg-green-400 rounded-full animate-pulse"
+                                title="Connected"
+                              ></div>
+                            )}
+                            {connectionStatus === "connecting" && (
+                              <div
+                                className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"
+                                title="Connecting..."
+                              ></div>
+                            )}
+                            {connectionStatus === "disconnected" && (
+                              <div
+                                className="w-2 h-2 bg-gray-400 rounded-full"
+                                title="Offline"
+                              ></div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>{" "}
                     {/* Game Mode Cards */}
                     <div className="space-y-4">
                       {/* Online Lobby Card */}
@@ -696,10 +897,36 @@ export default function Home() {
 
                               <button
                                 onClick={playOnline}
-                                disabled={!playerName.trim()}
-                                className="w-full bg-gradient-to-r from-dp-neon to-blue-400 text-[#0D1117] font-bold py-2 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-neon/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+                                disabled={!playerName.trim() || isJoiningLobby}
+                                className="w-full bg-gradient-to-r from-dp-neon to-blue-400 text-[#0D1117] font-bold py-2 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-neon/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm flex items-center justify-center"
                               >
-                                Join Lobby
+                                {isJoiningLobby ? (
+                                  <>
+                                    <svg
+                                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                      ></circle>
+                                      <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                      ></path>
+                                    </svg>
+                                    Connecting...
+                                  </>
+                                ) : (
+                                  "Join Lobby"
+                                )}
                               </button>
                             </div>
                           </div>
@@ -736,10 +963,38 @@ export default function Home() {
 
                               <button
                                 onClick={playWithComputer}
-                                disabled={!playerName.trim()}
-                                className="w-full bg-gradient-to-r from-purple-500 to-dp-neon text-white font-bold py-2 px-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+                                disabled={
+                                  !playerName.trim() || isStartingBotGame
+                                }
+                                className="w-full bg-gradient-to-r from-purple-500 to-dp-neon text-white font-bold py-2 px-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm flex items-center justify-center"
                               >
-                                Start Computer Game
+                                {isStartingBotGame ? (
+                                  <>
+                                    <svg
+                                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                      ></circle>
+                                      <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                      ></path>
+                                    </svg>
+                                    Starting...
+                                  </>
+                                ) : (
+                                  "Start Computer Game"
+                                )}
                               </button>
                             </div>
                           </div>
@@ -782,11 +1037,35 @@ export default function Home() {
                                   disabled={
                                     isCreatingRoom || !playerName.trim()
                                   }
-                                  className="bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2 px-2 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-xs"
+                                  className="bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2 px-2 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-xs flex items-center justify-center"
                                 >
-                                  {isCreatingRoom
-                                    ? "Creating..."
-                                    : "Create Room"}
+                                  {isCreatingRoom ? (
+                                    <>
+                                      <svg
+                                        className="animate-spin -ml-1 mr-1 h-3 w-3 text-current"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <circle
+                                          className="opacity-25"
+                                          cx="12"
+                                          cy="12"
+                                          r="10"
+                                          stroke="currentColor"
+                                          strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                          className="opacity-75"
+                                          fill="currentColor"
+                                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                      </svg>
+                                      Creating...
+                                    </>
+                                  ) : (
+                                    "Create Room"
+                                  )}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -837,11 +1116,35 @@ export default function Home() {
                                         !playerName.trim() ||
                                         isJoiningRoom
                                       }
-                                      className="w-full bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm"
+                                      className="w-full bg-gradient-to-r from-dp-heart to-orange-400 text-white font-bold py-2 px-3 rounded-lg hover:shadow-lg hover:shadow-dp-heart/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] text-sm flex items-center justify-center"
                                     >
-                                      {isJoiningRoom
-                                        ? "Checking Room..."
-                                        : "Join Room"}
+                                      {isJoiningRoom ? (
+                                        <>
+                                          <svg
+                                            className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <circle
+                                              className="opacity-25"
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="4"
+                                            ></circle>
+                                            <path
+                                              className="opacity-75"
+                                              fill="currentColor"
+                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
+                                          </svg>
+                                          Checking Room...
+                                        </>
+                                      ) : (
+                                        "Join Room"
+                                      )}
                                     </button>
                                     {joinRoomError && (
                                       <div className="text-dp-heart text-xs font-semibold text-center bg-dp-heart/10 py-1.5 px-2 rounded-lg border border-dp-heart/20">
