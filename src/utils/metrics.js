@@ -69,7 +69,42 @@ const botActionsCounter = new client.Counter({
 const responseTimeHistogram = new client.Histogram({
   name: "dehla_pakad_response_time_seconds",
   help: "Response time in seconds",
-  buckets: [0.1, 0.5, 1, 2, 5],
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+  registers: [register],
+});
+
+// Additional metrics for better monitoring
+const roomSizeHistogram = new client.Histogram({
+  name: "dehla_pakad_room_size_distribution",
+  help: "Distribution of players per room",
+  buckets: [1, 2, 3, 4],
+  registers: [register],
+});
+
+const gameDurationHistogram = new client.Histogram({
+  name: "dehla_pakad_game_duration_seconds",
+  help: "Duration of completed games in seconds",
+  buckets: [60, 300, 600, 900, 1800, 3600],
+  registers: [register],
+});
+
+const errorCountCounter = new client.Counter({
+  name: "dehla_pakad_errors_total",
+  help: "Total number of errors by type",
+  labelNames: ["error_type", "component"],
+  registers: [register],
+});
+
+const redisOperationsCounter = new client.Counter({
+  name: "dehla_pakad_redis_operations_total",
+  help: "Total Redis operations by type",
+  labelNames: ["operation", "status"],
+  registers: [register],
+});
+
+const activeBotsGauge = new client.Gauge({
+  name: "dehla_pakad_active_bots_total",
+  help: "Total number of active bot players",
   registers: [register],
 });
 
@@ -81,12 +116,22 @@ const metrics = {
   setPlayersInGame: (count) => playersInGameGauge.set(count),
   setPlayersWaiting: (count) => playersWaitingGauge.set(count),
   setSocketConnections: (count) => socketConnectionsGauge.set(count),
+  setActiveBots: (count) => activeBotsGauge.set(count),
 
   // Counter increments
   incrementGamesStarted: () => gamesStartedCounter.inc(),
   incrementGamesCompleted: () => gamesCompletedCounter.inc(),
   incrementCardPlays: () => cardPlaysCounter.inc(),
   incrementBotActions: () => botActionsCounter.inc(),
+  incrementErrors: (errorType, component) =>
+    errorCountCounter.inc({ error_type: errorType, component }),
+  incrementRedisOperations: (operation, status) =>
+    redisOperationsCounter.inc({ operation, status }),
+
+  // Histogram observations
+  observeResponseTime: (seconds) => responseTimeHistogram.observe(seconds),
+  observeRoomSize: (playerCount) => roomSizeHistogram.observe(playerCount),
+  observeGameDuration: (seconds) => gameDurationHistogram.observe(seconds),
 
   // Response time tracking
   startTimer: () => responseTimeHistogram.startTimer(),
