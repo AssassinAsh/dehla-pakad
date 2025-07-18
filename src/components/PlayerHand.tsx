@@ -171,8 +171,17 @@ export default function PlayerHand({
   // Sort hand whenever it changes
   useEffect(() => {
     // Sort hand for a consistent display
-    const sorted = [...hand].sort((a, b) => {
-      if (a.suit === b.suit) {
+    if (hand && hand.length > 0) {
+      const sorted = [...hand].sort((a, b) => {
+        // Primary sort: by suit (Spades, Hearts, Clubs, Diamonds)
+        const suitOrder = ["spades", "hearts", "clubs", "diamonds"];
+        const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
+
+        if (suitDiff !== 0) {
+          return suitDiff;
+        }
+
+        // Secondary sort: by rank within the same suit
         const rankOrder = [
           "2",
           "3",
@@ -189,13 +198,54 @@ export default function PlayerHand({
           "A",
         ];
         return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
-      }
-      // Custom suit order: Spade, Heart, Club, Diamond
-      const suitOrder = ["S", "H", "C", "D"];
-      return suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
-    });
-    setSortedHand(sorted);
+      });
+
+      // Debug logging to verify sorting is working
+      console.log("🃏 PlayerHand: Sorting cards", {
+        original: hand.map((c) => `${c.rank}${c.suit.charAt(0).toUpperCase()}`),
+        sorted: sorted.map((c) => `${c.rank}${c.suit.charAt(0).toUpperCase()}`),
+      });
+
+      setSortedHand(sorted);
+    } else {
+      setSortedHand([]);
+    }
   }, [hand]);
+
+  // Force re-sort when hand length changes (additional safety)
+  useEffect(() => {
+    if (hand && hand.length > 0 && sortedHand.length !== hand.length) {
+      console.log("🔄 PlayerHand: Force re-sorting due to length change", {
+        handLength: hand.length,
+        sortedLength: sortedHand.length,
+      });
+
+      const sorted = [...hand].sort((a, b) => {
+        const suitOrder = ["spades", "hearts", "clubs", "diamonds"];
+        const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
+        if (suitDiff !== 0) return suitDiff;
+
+        const rankOrder = [
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "J",
+          "Q",
+          "K",
+          "A",
+        ];
+        return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
+      });
+
+      setSortedHand(sorted);
+    }
+  }, [hand.length, sortedHand.length, hand]);
 
   // Clear selection if selected card is no longer in hand
   useEffect(() => {

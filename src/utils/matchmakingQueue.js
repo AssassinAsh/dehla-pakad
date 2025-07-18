@@ -207,6 +207,8 @@ export class MatchmakingQueue {
     // Check if player was in a waiting room
     for (const [roomId, roomData] of this.waitingRooms.entries()) {
       const room = roomData.room;
+      if (!room || !room.players) continue;
+
       const playerIndex = room.players.findIndex(
         (p) => p.socketId === socketId
       );
@@ -214,6 +216,9 @@ export class MatchmakingQueue {
       if (playerIndex !== -1) {
         // Remove player from waiting room
         room.players.splice(playerIndex, 1);
+
+        // Update room data player count
+        roomData.playerCount = room.players.length;
 
         // If room becomes empty, clean it up
         if (room.players.length === 0) {
@@ -232,7 +237,7 @@ export class MatchmakingQueue {
   /**
    * Attempt to match players in queue
    */
-  static attemptMatching() {
+  static async attemptMatching() {
     const queuedPlayers = Array.from(this.queue.values())
       .filter((p) => p.preferences.mode !== "quick-bots")
       .sort((a, b) => a.joinedAt - b.joinedAt); // FIFO
@@ -250,11 +255,15 @@ export class MatchmakingQueue {
         const playersToAdd = queuedPlayers.slice(0, availableSlots);
 
         for (const player of playersToAdd) {
-          this.addPlayerToWaitingRoom(roomId, player);
+          await this.addPlayerToWaitingRoom(roomId, player);
         }
 
+        // Get updated room data
+        const updatedRoom = await RoomManager.getRoom(roomId);
+        const finalRoom = updatedRoom || room;
+
         // If room is full, start the game
-        if (room.players.length === this.MAX_PLAYERS_PER_ROOM) {
+        if (finalRoom.players.length === this.MAX_PLAYERS_PER_ROOM) {
           this.startGameFromWaitingRoom(roomId);
         }
 
@@ -268,7 +277,11 @@ export class MatchmakingQueue {
         0,
         this.MAX_PLAYERS_PER_ROOM
       );
-      this.createWaitingRoom(playersForNewRoom);
+      try {
+        await this.createWaitingRoom(playersForNewRoom);
+      } catch (error) {
+        console.error("Failed to create waiting room during matching:", error);
+      }
     }
   }
 
@@ -283,32 +296,49 @@ export class MatchmakingQueue {
     // Assign player to seat 1
     player.seat = 1;
 
-    // Create room directly
-    const room = await RoomManager.createRoom(roomId, player);
+    try {
+      // Create room directly
+      const room = await RoomManager.createRoom(roomId, player);
 
-    // Set game mode for quick-bots
-    await RoomManager.setGameMode(roomId, "quick-bots");
+      // Set game mode for quick-bots
+      await RoomManager.setGameMode(roomId, "quick-bots");
 
-    // Add bots to remaining seats
-    BotManager.addBotsToRoom(roomId, room, "medium");
+      // Add bots to remaining seats
+      BotManager.addBotsToRoom(roomId, room, "medium");
 
-    // Make bots ready
-    BotManager.makeBotsReady(roomId);
+      // Make bots ready
+      BotManager.makeBotsReady(roomId);
 
-    // Remove player from queue
-    this.removePlayerFromQueue(player.socketId);
+      // Remove player from queue
+      this.removePlayerFromQueue(player.socketId);
 
-    console.log(
-      `Quick bot game ${roomId} created successfully for ${player.name}`
-    );
+      console.log(
+        `Quick bot game ${roomId} created successfully for ${player.name}`
+      );
 
-    return { status: "matched", roomId, gameType: "quick-bots" };
+      return { status: "matched", roomId, gameType: "quick-bots" };
+    } catch (error) {
+      console.error(
+        `Failed to create quick bot game for ${player.name}:`,
+        error
+      );
+
+      // Notify player of the error
+      if (this.io) {
+        this.io.to(player.socketId).emit("gameCreationError", {
+          message: "Failed to create game with bots. Please try again.",
+          error: "BOT_GAME_CREATION_FAILED",
+        });
+      }
+
+      throw error;
+    }
   }
 
   /**
    * Create a waiting room for matched players
    */
-  static createWaitingRoom(players) {
+  static async createWaitingRoom(players) {
     const roomId = this.generateRoomId();
     console.log(
       `Creating waiting room ${roomId} for ${players.length} players`
@@ -319,52 +349,60 @@ export class MatchmakingQueue {
       player.seat = index + 1;
     });
 
-    // Create room with first player
-    const room = RoomManager.createRoom(roomId, players[0]);
+    try {
+      // Create room with first player
+      const room = await RoomManager.createRoom(roomId, players[0]);
 
-    // Add remaining players
-    for (let i = 1; i < players.length; i++) {
-      RoomManager.addPlayerToRoom(roomId, players[i]);
+      // Add remaining players
+      for (let i = 1; i < players.length; i++) {
+        await RoomManager.addPlayerToRoom(roomId, players[i]);
+      }
+
+      // Remove players from queue only after successful room creation
+      players.forEach((player) => {
+        this.queue.delete(player.socketId);
+        const timeout = this.playerTimers.get(player.socketId);
+        if (timeout) {
+          clearTimeout(timeout);
+          this.playerTimers.delete(player.socketId);
+        }
+      });
+
+      // Set up waiting room
+      const waitingRoomData = {
+        room,
+        createdAt: Date.now(),
+        playerCount: players.length,
+        timer: null,
+      };
+
+      this.waitingRooms.set(roomId, waitingRoomData);
+
+      // Set timer to fill with bots if needed
+      waitingRoomData.timer = setTimeout(() => {
+        this.fillRoomWithBots(roomId);
+      }, this.PARTIAL_ROOM_WAIT);
+
+      // Notify players
+      players.forEach((player) => {
+        if (this.io) {
+          this.io.to(player.socketId).emit("matchFound", {
+            roomId,
+            message: `Match found! ${players.length}/4 players ready.`,
+            playersFound: players.length,
+            waitingForMore: this.MAX_PLAYERS_PER_ROOM - players.length,
+          });
+        }
+      });
+
+      return roomId;
+    } catch (error) {
+      console.error(`Failed to create waiting room ${roomId}:`, error);
+
+      // Don't remove players from queue if room creation failed
+      // They can be matched again
+      throw error;
     }
-
-    // Remove players from queue
-    players.forEach((player) => {
-      this.queue.delete(player.socketId);
-      const timeout = this.playerTimers.get(player.socketId);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.playerTimers.delete(player.socketId);
-      }
-    });
-
-    // Set up waiting room
-    const waitingRoomData = {
-      room,
-      createdAt: Date.now(),
-      playerCount: players.length,
-      timer: null,
-    };
-
-    this.waitingRooms.set(roomId, waitingRoomData);
-
-    // Set timer to fill with bots if needed
-    waitingRoomData.timer = setTimeout(() => {
-      this.fillRoomWithBots(roomId);
-    }, this.PARTIAL_ROOM_WAIT);
-
-    // Notify players
-    players.forEach((player) => {
-      if (this.io) {
-        this.io.to(player.socketId).emit("matchFound", {
-          roomId,
-          message: `Match found! ${players.length}/4 players ready.`,
-          playersFound: players.length,
-          waitingForMore: this.MAX_PLAYERS_PER_ROOM - players.length,
-        });
-      }
-    });
-
-    return roomId;
   }
 
   /**
@@ -419,6 +457,31 @@ export class MatchmakingQueue {
         `Player ${player.name} joined room ${roomId} (${currentPlayerCount}/${this.MAX_PLAYERS_PER_ROOM})`
       );
 
+      // Notify player they joined the lobby
+      if (this.io) {
+        this.io.to(player.socketId).emit("lobbyJoined", {
+          roomId,
+          message: `Joined lobby! ${currentPlayerCount}/${this.MAX_PLAYERS_PER_ROOM} players ready.`,
+          playersCount: currentPlayerCount,
+          maxPlayers: this.MAX_PLAYERS_PER_ROOM,
+          timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
+          yourSeat: player.seat,
+        });
+      }
+
+      // Notify all players in the room about the update
+      this.notifyRoomUpdate(roomId, updatedRoom || room);
+
+      // Notify new player about match found
+      if (this.io) {
+        this.io.to(player.socketId).emit("matchFound", {
+          roomId,
+          message: `Joined match! ${currentPlayerCount}/4 players ready.`,
+          playersFound: currentPlayerCount,
+          waitingForMore: this.MAX_PLAYERS_PER_ROOM - currentPlayerCount,
+        });
+      }
+
       return true;
     } catch (error) {
       console.error(
@@ -428,39 +491,12 @@ export class MatchmakingQueue {
       // Don't remove from queue if there was an error
       return false;
     }
-
-    // Notify player they joined the lobby
-    if (this.io) {
-      this.io.to(player.socketId).emit("lobbyJoined", {
-        roomId,
-        message: `Joined lobby! ${currentPlayerCount}/${this.MAX_PLAYERS_PER_ROOM} players ready.`,
-        playersCount: currentPlayerCount,
-        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
-        timeRemaining: this.calculateTimeRemaining(roomData.createdAt),
-        yourSeat: player.seat,
-      });
-    }
-
-    // Notify all players in the room
-    this.notifyRoomUpdate(roomId, room);
-
-    // Notify new player
-    if (this.io) {
-      this.io.to(player.socketId).emit("matchFound", {
-        roomId,
-        message: `Joined match! ${room.players.length}/4 players ready.`,
-        playersFound: room.players.length,
-        waitingForMore: this.MAX_PLAYERS_PER_ROOM - room.players.length,
-      });
-    }
-
-    return true;
   }
 
   /**
    * Fill room with bots after timeout
    */
-  static fillRoomWithBots(roomId) {
+  static async fillRoomWithBots(roomId) {
     const roomData = this.waitingRooms.get(roomId);
     if (!roomData || !roomData.room) {
       console.warn(
@@ -475,20 +511,37 @@ export class MatchmakingQueue {
       return;
     }
 
-    // Add bots to empty seats
-    BotManager.addBotsToRoom(roomId, room, "medium");
+    try {
+      // Add bots to empty seats
+      BotManager.addBotsToRoom(roomId, room, "medium");
 
-    // Make bots ready
-    BotManager.makeBotsReady(roomId);
+      // Make bots ready
+      BotManager.makeBotsReady(roomId);
 
-    // Start the game
-    this.startGameFromWaitingRoom(roomId);
+      // Start the game
+      this.startGameFromWaitingRoom(roomId);
+    } catch (error) {
+      console.error(`Failed to fill room ${roomId} with bots:`, error);
+
+      // Clean up the room if bot filling failed
+      this.cleanupWaitingRoom(roomId);
+
+      // Notify remaining players
+      room.players.forEach((player) => {
+        if (this.io && !BotManager.isBot(player)) {
+          this.io.to(player.socketId).emit("roomError", {
+            message: "Failed to start game. Please try again.",
+            error: "ROOM_SETUP_FAILED",
+          });
+        }
+      });
+    }
   }
 
   /**
    * Start game from waiting room
    */
-  static startGameFromWaitingRoom(roomId) {
+  static async startGameFromWaitingRoom(roomId) {
     const roomData = this.waitingRooms.get(roomId);
     if (!roomData || !roomData.room) {
       console.warn(`Room ${roomId} not found or invalid when starting game`);
@@ -505,25 +558,47 @@ export class MatchmakingQueue {
       `Starting game in room ${roomId} with ${room.players.length} players`
     );
 
-    // Notify all players that the game is starting
-    room.players.forEach((player) => {
-      if (this.io && !BotManager.isBot(player)) {
-        this.io.to(player.socketId).emit("gameStarting", {
-          roomId,
-          message: "Game is starting! Get ready!",
-          redirect: true,
-        });
+    try {
+      // Verify room is ready to start
+      if (room.players.length < this.MAX_PLAYERS_PER_ROOM) {
+        console.warn(`Room ${roomId} doesn't have enough players to start`);
+        return;
       }
-    });
 
-    // Clean up waiting room
-    this.cleanupWaitingRoom(roomId);
+      // Notify all players that the game is starting
+      room.players.forEach((player) => {
+        if (this.io && !BotManager.isBot(player)) {
+          this.io.to(player.socketId).emit("gameStarting", {
+            roomId,
+            message: "Game is starting! Get ready!",
+            redirect: true,
+          });
+        }
+      });
+
+      // Clean up waiting room
+      this.cleanupWaitingRoom(roomId);
+
+      console.log(`Game successfully started in room ${roomId}`);
+    } catch (error) {
+      console.error(`Failed to start game in room ${roomId}:`, error);
+
+      // Notify players of the error
+      room.players.forEach((player) => {
+        if (this.io && !BotManager.isBot(player)) {
+          this.io.to(player.socketId).emit("gameStartError", {
+            message: "Failed to start game. Please try again.",
+            error: "GAME_START_FAILED",
+          });
+        }
+      });
+    }
   }
 
   /**
    * Handle player timeout
    */
-  static handlePlayerTimeout(socketId) {
+  static async handlePlayerTimeout(socketId) {
     const player = this.queue.get(socketId);
     if (!player) return;
 
@@ -539,7 +614,15 @@ export class MatchmakingQueue {
       }
     } else {
       // Create game with bots
-      this.createQuickBotGame(player);
+      try {
+        await this.createQuickBotGame(player);
+      } catch (error) {
+        console.error(
+          `Failed to create timeout bot game for ${player.name}:`,
+          error
+        );
+        // Player will be removed from queue regardless
+      }
     }
 
     this.removePlayerFromQueue(socketId);

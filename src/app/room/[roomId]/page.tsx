@@ -667,7 +667,6 @@ export default function RoomPage() {
 
           {/* Ready Button System - Centered in viewport */}
           {!room.gameStarted &&
-            !room.gameState?.dealing &&
             room.players.length === 4 &&
             room.players.every((p) => p.seat !== null) && (
               <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">

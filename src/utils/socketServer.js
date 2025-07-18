@@ -554,19 +554,26 @@ export default function setupSocketIO(server) {
           }
 
           const dealerSeat = room.dealerSeat;
-          await RoomManager.setDealing(roomId, true);
 
-          const deck = createDeck();
-
-          // Use optimized dealing with proper dealer logic
-          await dealInitialCards(room, roomId, io, deck, dealerSeat);
-
-          // Finish dealing
+          // IMPORTANT: Set game as started BEFORE dealing to hide ready buttons immediately
           room.gameStarted = true;
           room.gameState.status = "in-progress";
+          await RoomManager.setDealing(roomId, true);
+
+          // Update room state and notify clients immediately
+          await RoomManager.updateRoomState(roomId, room);
+          io.to(roomId).emit("gameStarted", room);
+          emitRoomUpdate(roomId, io);
+
+          // Now start dealing cards
+          const deck = createDeck();
+          await dealInitialCards(room, roomId, io, deck, dealerSeat);
+
           // Set current player to the one who got the first card (clockwise from dealer)
           room.currentPlayer = room.firstPlayerThisRound;
           room.deck = deck; // Store remaining deck
+
+          // Clear dealing flag and update room
           await RoomManager.setDealing(roomId, false);
           await RoomManager.updateRoomState(roomId, room);
 
@@ -623,24 +630,33 @@ export default function setupSocketIO(server) {
             }
 
             const dealerSeat = room.dealerSeat;
-            await RoomManager.setDealing(roomId, true);
-            const deck = createDeck();
 
-            // Use optimized dealing with proper dealer logic
-            await dealInitialCards(room, roomId, io, deck, dealerSeat);
-
+            // IMPORTANT: Set game as started BEFORE dealing to hide ready buttons immediately
             room.gameStarted = true;
             room.gameState.status = "in-progress";
+            await RoomManager.setDealing(roomId, true);
+
+            // Update room state and notify clients immediately
+            await RoomManager.updateRoom(roomId, room);
+            io.to(roomId).emit("gameStarted", room);
+            emitRoomUpdate(roomId, io);
+
+            // Now start dealing cards
+            const deck = createDeck();
+            await dealInitialCards(room, roomId, io, deck, dealerSeat);
+
             // Set current player to the one who got the first card (clockwise from dealer)
             room.currentPlayer = room.firstPlayerThisRound;
             room.deck = deck;
+
+            // Clear dealing flag after dealing is complete
             await RoomManager.setDealing(roomId, false);
-            RoomManager.updateRoom(roomId, room);
+            await RoomManager.updateRoom(roomId, room);
 
             // Track game started metric
             metrics.incrementGamesStarted();
 
-            io.to(roomId).emit("gameStarted", room);
+            // Final room update after dealing
             emitRoomUpdate(roomId, io);
 
             // Use unified turn handler for first player with a small delay
