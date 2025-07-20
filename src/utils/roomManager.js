@@ -454,7 +454,6 @@ export class RoomManager {
 
   // Cleanup stale rooms periodically
   static async cleanupStaleRooms() {
-    console.log("Running periodic room cleanup...");
     const now = Date.now();
     const staleThreshold = 30 * 60 * 1000; // 30 minutes
     const emptyRoomThreshold = 10 * 60 * 1000; // 10 minutes for empty rooms
@@ -495,22 +494,23 @@ export class RoomManager {
       }
 
       if (shouldRemove) {
-        console.log(`Cleaning up stale room ${roomId}: ${reason}`);
+        try {
+          // Track cleanup metrics
+          metrics.incrementRoomsCleaned(reason.replace(/ /g, "_"));
 
-        // Track cleanup metrics
-        metrics.incrementRoomsCleaned(reason.replace(/ /g, "_"));
+          // Clean up associated data
+          BotManager.cleanupRoom(roomId);
 
-        // Clean up associated data
-        BotManager.cleanupRoom(roomId);
-
-        // Remove from storage
-        await this.removeRoom(roomId);
-        cleanedRooms++;
+          // Remove from storage
+          await this.removeRoom(roomId);
+          cleanedRooms++;
+        } catch (cleanupError) {
+          console.error(`Error cleaning up room ${roomId}:`, cleanupError);
+        }
       }
     }
 
     if (cleanedRooms > 0) {
-      console.log(`Cleaned up ${cleanedRooms} stale rooms`);
       this.updateMetrics();
     }
   }

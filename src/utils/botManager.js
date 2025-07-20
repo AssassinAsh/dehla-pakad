@@ -470,9 +470,9 @@ export class BotManager {
             player.isPlaying = false; // Clear flag on error
             throw new Error(`You must follow the suit: ${leadSuit}`);
           } else {
-            console.error(
-              `Bot ${player.name} tried to play invalid card - must follow suit ${leadSuit}`
-            );
+            // console.error(
+            //   `Bot ${player.name} tried to play invalid card - must follow suit ${leadSuit}`
+            // );
             player.isPlaying = false; // Clear flag on error
             return; // Bot shouldn't make invalid moves
           }
@@ -539,8 +539,7 @@ export class BotManager {
           this.handleTurn(roomId, room, io);
         }, 800); // Increased delay from 500ms to 800ms
       }
-    } catch (error) {
-      console.error(`Error in processCardPlay for ${player.name}:`, error);
+    } catch {
       player.isPlaying = false; // Clear flag on error
       if (this.isBot(player)) {
         player.isThinking = false;
@@ -667,7 +666,7 @@ export class BotManager {
                 room.gameState.draw = true;
               else room.gameState.draw = false;
               room.gameState.status = "finished";
-              console.log("Game finished");
+              // console.log("Game finished");
 
               // Emit game end event
               GameEventManager.emitToRoom(io, roomId, "GAME_ENDED", {
