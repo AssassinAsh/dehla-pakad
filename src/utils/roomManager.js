@@ -757,6 +757,7 @@ export class RoomManager {
       room.stackedTricks = [];
       room.gameStarted = false;
       room.currentPlayer = 1;
+      room.isCurrentlyDealing = false; // Reset dealing flag to prevent replay freeze
       // Keep dealer seat for proper rotation (will be rotated when game starts)
 
       // Clear replay votes
