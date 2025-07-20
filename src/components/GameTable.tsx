@@ -14,6 +14,7 @@ interface GameTableProps {
   onAddBot?: (seat: number) => void;
   isHost?: boolean;
   socket?: Socket; // Socket.IO socket for listening to card dealing events
+  onShowRules?: () => void; // Callback to show rules modal
 }
 
 /**
@@ -27,6 +28,7 @@ export default function GameTable({
   onAddBot,
   isHost = false,
   socket,
+  onShowRules,
 }: GameTableProps) {
   const isDealing = room.gameState?.dealing || false;
   const { playCardDeal, stopCardDeal } = useAudio();
@@ -41,6 +43,31 @@ export default function GameTable({
       opacity: number;
     }>
   >([]);
+
+  // Track previous scores for animations
+  const [prevScores, setPrevScores] = useState({
+    team1: { tricks: 0, tens: 0 },
+    team2: { tricks: 0, tens: 0 },
+  });
+
+  // Update previous scores when current scores change
+  useEffect(() => {
+    const currentScores = {
+      team1: room.gameState?.scores?.team1 || { tricks: 0, tens: 0 },
+      team2: room.gameState?.scores?.team2 || { tricks: 0, tens: 0 },
+    };
+
+    // Check if scores have changed
+    const hasChanged =
+      prevScores.team1.tricks !== currentScores.team1.tricks ||
+      prevScores.team1.tens !== currentScores.team1.tens ||
+      prevScores.team2.tricks !== currentScores.team2.tricks ||
+      prevScores.team2.tens !== currentScores.team2.tens;
+
+    if (hasChanged) {
+      setPrevScores(currentScores);
+    }
+  }, [room.gameState?.scores, prevScores]);
 
   // Listen for individual card dealing events from server
   useEffect(() => {
@@ -136,10 +163,6 @@ export default function GameTable({
   // Rotate seat order so local player is always at the bottom
   const seatOrder = [0, 1, 2, 3].map((i) => ((mySeat - 1 + i) % 4) + 1);
 
-  // Calculate team scores
-  const team1Scores = room.gameState?.scores?.team1 || { tricks: 0, tens: 0 };
-  const team2Scores = room.gameState?.scores?.team2 || { tricks: 0, tens: 0 };
-
   // Helper to get suit color
   const getSuitColor = (suit: string) => {
     return suit === "hearts" || suit === "diamonds"
@@ -148,82 +171,152 @@ export default function GameTable({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto relative flex flex-col items-center justify-center px-2 sm:px-4">
+    <div className="w-full max-w-4xl mx-auto relative flex flex-col items-center justify-center px-2 sm:px-4 mt-2 sm:mt-4">
+      {/* Compact Score Display - Top Border Left */}
+      <div className="absolute -top-1 sm:-top-2 left-6 sm:left-8 z-30">
+        <div className="flex items-center gap-1 sm:gap-2 bg-black/60 backdrop-blur-md rounded-full px-2 sm:px-3 py-1 border border-white/20 shadow-lg">
+          {/* Team 1 */}
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            <span className="text-blue-300 text-[10px] sm:text-xs font-medium">
+              T1
+            </span>
+            <div className="flex items-center gap-1">
+              <span
+                className={`text-yellow-300 text-xs sm:text-sm font-bold transition-all duration-300 ${
+                  prevScores.team1.tricks !==
+                  (room.gameState?.scores?.team1?.tricks || 0)
+                    ? "animate-bounce"
+                    : ""
+                }`}
+              >
+                {room.gameState?.scores?.team1?.tricks || 0}
+              </span>
+              <span className="text-gray-400 text-[8px] sm:text-xs">|</span>
+              <span
+                className={`text-green-300 text-xs sm:text-sm font-bold transition-all duration-300 ${
+                  prevScores.team1.tens !==
+                  (room.gameState?.scores?.team1?.tens || 0)
+                    ? "animate-bounce"
+                    : ""
+                }`}
+              >
+                {room.gameState?.scores?.team1?.tens || 0}
+              </span>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-4 bg-white/30"></div>
+
+          {/* Team 2 */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span
+                className={`text-yellow-300 text-xs sm:text-sm font-bold transition-all duration-300 ${
+                  prevScores.team2.tricks !==
+                  (room.gameState?.scores?.team2?.tricks || 0)
+                    ? "animate-bounce"
+                    : ""
+                }`}
+              >
+                {room.gameState?.scores?.team2?.tricks || 0}
+              </span>
+              <span className="text-gray-400 text-[8px] sm:text-xs">|</span>
+              <span
+                className={`text-green-300 text-xs sm:text-sm font-bold transition-all duration-300 ${
+                  prevScores.team2.tens !==
+                  (room.gameState?.scores?.team2?.tens || 0)
+                    ? "animate-bounce"
+                    : ""
+                }`}
+              >
+                {room.gameState?.scores?.team2?.tens || 0}
+              </span>
+            </div>
+            <span className="text-orange-300 text-[10px] sm:text-xs font-medium">
+              T2
+            </span>
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-orange-400 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Compact Trump Indicator - Top Border Right */}
+      {room.gameState?.trump && (
+        <div className="absolute -top-1 sm:-top-2 right-6 sm:right-8 z-30">
+          <div className="flex items-center gap-1 sm:gap-2 bg-black/60 backdrop-blur-md rounded-full px-2 sm:px-3 py-0.5 border border-white/20 shadow-lg">
+            {/* Trump label */}
+            <span className="text-purple-300 text-[10px] sm:text-xs font-medium">
+              Trump
+            </span>
+
+            {/* Divider */}
+            <div className="w-px h-3 bg-white/30"></div>
+
+            {/* Suit symbol */}
+            <div className="flex items-center gap-1">
+              <span
+                className={`text-sm sm:text-base font-bold transition-all duration-300 ${getSuitColor(
+                  room.gameState.trump
+                )} ${
+                  room.gameState.trump === "clubs" ||
+                  room.gameState.trump === "spades"
+                    ? "bg-white/90 rounded-full px-1 py-0.5 shadow-lg"
+                    : ""
+                }`}
+              >
+                {getSuitSymbol(room.gameState.trump)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Responsive game table container */}
       <div className="w-full h-[70vh] sm:h-[75vh] md:h-[80vh] lg:h-[85vh] max-h-[600px] bg-gradient-to-br from-green-800 via-green-900 to-green-950 rounded-2xl md:rounded-3xl relative border-4 md:border-6 border-yellow-700 shadow-2xl overflow-hidden p-3 sm:p-4 md:p-6 lg:p-8 mb-20 sm:mb-24 md:mb-0">
+        {/* Rules Button - Moved inside table container */}
+        {onShowRules && (
+          <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 z-[100]">
+            <button
+              onClick={onShowRules}
+              className="flex items-center gap-1 sm:gap-2 bg-black/60 backdrop-blur-md rounded-full px-2 sm:px-3 py-0.5 border border-white/20 shadow-lg hover:bg-black/70 transition-colors cursor-pointer touch-manipulation"
+              aria-label="Show Rules"
+            >
+              {/* Rules label */}
+              <span className="text-yellow-300 text-[10px] sm:text-xs font-medium pointer-events-none">
+                Rules
+              </span>
+
+              {/* Divider */}
+              <div className="w-px h-3 bg-white/30 pointer-events-none"></div>
+
+              {/* Rules icon */}
+              <div className="flex items-center gap-1 pointer-events-none">
+                <svg
+                  className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+            </button>
+          </div>
+        )}
         {/* Enhanced table texture with better blend mode */}
         <div className="absolute inset-0 bg-[url('/table-texture.png')] opacity-25 mix-blend-overlay pointer-events-none" />
         {/* Realistic felt texture overlay */}
         <div className="absolute inset-0 bg-gradient-radial from-transparent via-green-800/10 to-green-900/20 pointer-events-none" />
         {/* Enhanced inner shadow for depth */}
         <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.3)] rounded-2xl md:rounded-3xl pointer-events-none" />
-
-        {/* Modernized Team Score Cards with better spacing */}
-        <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-30">
-          <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 text-white text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 border-blue-300 shadow-xl font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] md:min-w-[100px] backdrop-blur-sm">
-            <span className="font-bold text-blue-100 text-sm sm:text-base">
-              Team 1
-            </span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px] sm:text-xs text-blue-200">
-                Tricks:
-              </span>
-              <span className="text-yellow-300 text-lg sm:text-xl font-black">
-                {team1Scores.tricks}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] sm:text-xs text-blue-200">
-                Tens:
-              </span>
-              <span className="text-green-300 text-sm sm:text-base font-bold">
-                {team1Scores.tens}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-30">
-          <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 text-white text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 border-orange-300 shadow-xl font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] md:min-w-[100px] backdrop-blur-sm">
-            <span className="font-bold text-orange-100 text-sm sm:text-base">
-              Team 2
-            </span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px] sm:text-xs text-orange-200">
-                Tricks:
-              </span>
-              <span className="text-yellow-300 text-lg sm:text-xl font-black">
-                {team2Scores.tricks}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] sm:text-xs text-orange-200">
-                Tens:
-              </span>
-              <span className="text-green-300 text-sm sm:text-base font-bold">
-                {team2Scores.tens}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Enhanced trump indicator moved higher and outside play area */}
-        {room.gameState?.trump && (
-          <div className="absolute top-[8%] sm:top-[6%] right-[20%] sm:right-[18%] md:right-[22%] z-30 flex flex-col items-center">
-            <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-900 border-3 border-yellow-400 shadow-xl rounded-full w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center backdrop-blur-sm">
-              <span
-                className={`text-2xl sm:text-3xl font-black drop-shadow-lg ${getSuitColor(
-                  room.gameState.trump
-                )}`}
-              >
-                {getSuitSymbol(room.gameState.trump)}
-              </span>
-            </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-yellow-200 mt-1 tracking-wider uppercase leading-none bg-black/30 px-2 py-0.5 rounded-full">
-              Trump
-            </span>
-          </div>
-        )}
 
         {/* Enhanced Trump Card Display with better animation */}
         {room.gameState?.trump && room.gameState?.trumpJustSet && (

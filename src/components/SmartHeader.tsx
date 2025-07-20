@@ -6,13 +6,13 @@ import { Room } from "@/types/game";
 interface SmartHeaderProps {
   room: Room;
   isGameInProgress: boolean;
-  onShowRules: () => void;
+  hide?: boolean;
 }
 
 export default function SmartHeader({
   room,
   isGameInProgress,
-  onShowRules,
+  hide = false,
 }: SmartHeaderProps) {
   const [copied, setCopied] = useState(false);
 
@@ -99,26 +99,52 @@ export default function SmartHeader({
 
   const modeIndicator = getGameModeIndicator();
 
+  // Hide the entire header during gameplay
+  if (isInGame) {
+    // Show compact header with only the heading
+    let compactHeading = "";
+    if (gameMode === "lobby") {
+      compactHeading = "Competing Online";
+    } else if (gameMode === "quick-bots") {
+      compactHeading = "Playing Computer";
+    } else {
+      compactHeading = "Private Room";
+    }
+    return (
+      <header
+        className={`sticky top-0 z-40 flex items-center justify-center px-2 md:px-4 lg:px-8 py-2 bg-gradient-to-br from-green-800 via-green-900 to-green-950 border-b-2 border-yellow-700 shadow-xl mb-1 md:mb-2 transition-all duration-300 backdrop-blur-md transition-transform transition-opacity ${
+          hide
+            ? "-translate-y-full opacity-0 pointer-events-none"
+            : "translate-y-0 opacity-100"
+        }`}
+      >
+        <span className="text-base md:text-lg font-bold tracking-wide text-yellow-300 drop-shadow-lg">
+          {compactHeading}
+        </span>
+      </header>
+    );
+  }
+
   return (
     <header
-      className={`sticky top-0 z-30 flex items-center justify-between gap-1 md:gap-2 px-2 md:px-4 lg:px-8 ${
-        isInGame ? "py-1 md:py-1" : "py-1 md:py-2 lg:py-4"
-      } bg-gradient-to-b from-black/70 to-transparent rounded-b-2xl shadow-lg ${
-        isInGame ? "mb-1 md:mb-2" : "mb-2 md:mb-4"
-      } transition-all duration-300`}
+      className={`sticky top-0 z-40 flex flex-col items-center justify-center gap-1 md:gap-2 px-2 md:px-4 lg:px-8 py-1 md:py-2 lg:py-3 bg-gradient-to-br from-green-800 via-green-900 to-green-950 border-b-2 border-yellow-700 shadow-xl mb-2 md:mb-4 transition-all duration-300 backdrop-blur-md transition-transform transition-opacity ${
+        hide
+          ? "-translate-y-full opacity-0 pointer-events-none"
+          : "translate-y-0 opacity-100"
+      }`}
     >
-      {/* Left side - Room ID, Game Mode Indicator, or Game State */}
-      <div className="flex items-center gap-2">
+      {/* Main content - centered */}
+      <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 w-full max-w-4xl">
         {shouldShowRoomId ? (
           // Show Room ID for private rooms
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-2 py-1 md:px-3 md:py-1 rounded-full bg-yellow-400 text-gray-900 font-bold text-sm md:text-base shadow-md border-2 border-yellow-600 select-all">
+          <div className="flex flex-col md:flex-row items-center gap-2 md:gap-3">
+            <span className="inline-flex items-center px-3 py-2 md:px-4 md:py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold text-sm md:text-base shadow-lg border-2 border-yellow-600 select-all">
               <span className="tracking-widest text-xs md:text-base">
                 {room.id}
               </span>
               <button
                 onClick={handleCopyRoomId}
-                className="ml-1 md:ml-2 p-1 rounded-full bg-yellow-500 hover:bg-yellow-300 transition-colors"
+                className="ml-2 md:ml-3 p-1.5 rounded-full bg-yellow-500 hover:bg-yellow-300 transition-colors shadow-md"
                 aria-label="Copy Room ID"
               >
                 {copied ? (
@@ -152,11 +178,11 @@ export default function SmartHeader({
             {/* Show game state info for private rooms */}
             {gameStateInfo && (
               <span
-                className={`inline-flex items-center px-2 py-1 rounded-full bg-gray-700/80 text-white font-medium ${
+                className={`inline-flex items-center px-3 py-2 rounded-xl bg-black/60 backdrop-blur-md text-white font-medium ${
                   gameStateInfo.compact
                     ? "text-xs md:text-sm"
                     : "text-sm md:text-base"
-                } shadow-sm border border-gray-600`}
+                } shadow-lg border border-white/20`}
               >
                 <span className="text-center">
                   {gameStateInfo.text}
@@ -171,18 +197,18 @@ export default function SmartHeader({
           </div>
         ) : modeIndicator ? (
           // Show game mode indicator for lobby/computer games
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col md:flex-row items-center gap-2 md:gap-3">
             <span
-              className={`inline-flex items-center px-2 py-1 md:px-3 md:py-1 rounded-full ${modeIndicator.bgColor} text-gray-900 font-bold text-sm md:text-base shadow-md border-2 ${modeIndicator.borderColor}`}
+              className={`inline-flex items-center px-3 py-2 md:px-4 md:py-2 rounded-xl ${modeIndicator.bgColor} text-gray-900 font-bold text-sm md:text-base shadow-lg border-2 ${modeIndicator.borderColor}`}
             >
-              <span className="mr-1 md:mr-2 text-sm md:text-base">
+              <span className="mr-2 md:mr-3 text-sm md:text-base">
                 {modeIndicator.icon}
               </span>
               <span className="text-xs md:text-base">{modeIndicator.text}</span>
             </span>
             {/* Show additional context for non-private games */}
             {gameStateInfo && !isInGame && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full bg-gray-700/80 text-white font-medium text-xs md:text-sm shadow-sm border border-gray-600">
+              <span className="inline-flex items-center px-3 py-2 rounded-xl bg-black/60 backdrop-blur-md text-white font-medium text-xs md:text-sm shadow-lg border border-white/20">
                 {gameStateInfo.text}
                 {gameStateInfo.subText && (
                   <span className="ml-1 opacity-75">
@@ -193,15 +219,12 @@ export default function SmartHeader({
             )}
           </div>
         ) : null}
-      </div>
 
-      {/* Right side - Share and Rules buttons */}
-      <div className="flex items-center gap-2">
         {/* Share Button - Only for private rooms when not in game */}
         {shouldShowShareButton && (
           <button
             onClick={handleShare}
-            className="flex items-center gap-1 md:gap-2 px-2 py-1 md:px-4 md:py-2 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold shadow-md border-2 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 transition-colors text-sm md:text-base min-w-[80px] md:min-w-[120px] justify-center"
+            className="flex items-center gap-1 md:gap-2 px-3 py-2 md:px-4 md:py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold shadow-lg border-2 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 transition-colors text-sm md:text-base min-w-[100px] md:min-w-[140px] justify-center"
             aria-label="Share Room Link"
           >
             <svg
@@ -231,36 +254,6 @@ export default function SmartHeader({
             )}
           </button>
         )}
-
-        {/* Rules Button - Always visible, more compact during gameplay */}
-        <button
-          onClick={onShowRules}
-          className={`flex items-center justify-center ${
-            isInGame ? "w-10 h-8 md:w-16 md:h-10" : "w-12 h-10 md:w-20 md:h-14"
-          } rounded-full bg-gradient-to-br from-yellow-400 to-yellow-300 text-gray-900 font-bold shadow-2xl border-2 md:border-4 border-yellow-600 hover:from-yellow-300 hover:to-yellow-400 hover:text-gray-900 transition-all px-2 py-1 md:px-4 md:py-2 ${
-            isInGame ? "text-xs md:text-sm" : "text-sm md:text-lg"
-          } gap-1 md:gap-2`}
-          aria-label="Show Rules"
-          style={{ boxShadow: "0 6px 32px 0 rgba(251, 191, 36, 0.25)" }}
-        >
-          <svg
-            className={`${
-              isInGame ? "w-4 h-4 md:w-5 md:h-5" : "w-5 h-5 md:w-7 md:h-7"
-            }`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          {!isInGame && <span className="hidden md:inline ml-1">Rules</span>}
-        </button>
       </div>
     </header>
   );

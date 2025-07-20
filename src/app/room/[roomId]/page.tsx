@@ -63,6 +63,7 @@ export default function RoomPage() {
     type: "captured" | "lost";
     count: number;
   } | null>(null); // State for 10 capture splash
+  const [hideHeader, setHideHeader] = useState(false);
 
   // Audio functionality for game sounds
   const {
@@ -374,6 +375,29 @@ export default function RoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, playerName]); // Removed currentPlayer to prevent infinite loop
 
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (window.scrollY > lastScrollY && window.scrollY > 40) {
+            setHideHeader(true); // Hide on scroll down
+          } else {
+            setHideHeader(false); // Show on scroll up
+          }
+          lastScrollY = window.scrollY;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const joinSeat = async (seatNumber: number) => {
     if (!playerName || !room || !socketRef.current) return;
 
@@ -661,7 +685,7 @@ export default function RoomPage() {
         <SmartHeader
           room={room}
           isGameInProgress={room.gameState.status === "in-progress"}
-          onShowRules={() => setIsRulesModalOpen(true)}
+          hide={hideHeader}
         />
         <main className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           {/* Table */}
@@ -673,6 +697,7 @@ export default function RoomPage() {
             onAddBot={handleAddBot}
             isHost={currentPlayer?.id === room.host}
             socket={socketRef.current || undefined}
+            onShowRules={() => setIsRulesModalOpen(true)}
           />
 
           {/* Ready Button System - Centered in viewport */}
@@ -680,33 +705,36 @@ export default function RoomPage() {
             room.players.length === 4 &&
             room.players.every((p) => p.seat !== null) && (
               <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
-                <div className="flex flex-col items-center space-y-4 pointer-events-auto">
-                  {!currentPlayer?.isReady ? (
-                    <button
-                      onClick={handleReady}
-                      className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-500 hover:border-green-400 active:scale-95"
-                    >
-                      🎮 Ready to Play
-                    </button>
-                  ) : (
-                    <div className="text-yellow-400 font-semibold text-lg bg-yellow-900/30 px-6 py-3 rounded-lg border border-yellow-500/50 shadow-md">
-                      ⏳ Waiting for others to get ready…
-                    </div>
-                  )}
-                  {/* Show which players are ready */}
-                  <div className="flex flex-wrap gap-2 justify-center max-w-md bg-gray-900/50 p-4 rounded-lg border border-gray-700 shadow-md">
-                    {room.players.map((p) => (
-                      <span
-                        key={`${p.name}-${p.seat}`}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
-                          p.isReady
-                            ? "bg-green-600 border-green-500 text-white"
-                            : "bg-gray-700 border-gray-600 text-gray-300"
-                        }`}
+                {/* Only the actual ready box is pointer-events-auto, not the whole center area */}
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <div className="flex flex-col items-center space-y-4 pointer-events-auto z-50">
+                    {!currentPlayer?.isReady ? (
+                      <button
+                        onClick={handleReady}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg text-xl border-2 border-green-500 hover:border-green-400 active:scale-95"
                       >
-                        {p.name} {p.isReady ? "✅" : "⏳"}
-                      </span>
-                    ))}
+                        🎮 Ready to Play
+                      </button>
+                    ) : (
+                      <div className="text-yellow-400 font-semibold text-lg bg-yellow-900/30 px-6 py-3 rounded-lg border border-yellow-500/50 shadow-md">
+                        ⏳ Waiting for others to get ready…
+                      </div>
+                    )}
+                    {/* Show which players are ready */}
+                    <div className="flex flex-wrap gap-2 justify-center max-w-md bg-gray-900/50 p-4 rounded-lg border border-gray-700 shadow-md">
+                      {room.players.map((p) => (
+                        <span
+                          key={`${p.name}-${p.seat}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                            p.isReady
+                              ? "bg-green-600 border-green-500 text-white"
+                              : "bg-gray-700 border-gray-600 text-gray-300"
+                          }`}
+                        >
+                          {p.name} {p.isReady ? "✅" : "⏳"}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
