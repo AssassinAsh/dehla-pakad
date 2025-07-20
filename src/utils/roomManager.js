@@ -187,9 +187,21 @@ export class RoomManager {
     }
 
     // Prevent same user (by socket id) from taking multiple seats
-    const alreadySeated = room.players.some((p) => p.id === player.id);
-    if (alreadySeated) {
+    const alreadySeatedById = room.players.some((p) => p.id === player.id);
+    if (alreadySeatedById) {
       return false;
+    }
+
+    // Prevent duplicate by name: if a player with the same name exists, update their socket id and info
+    const existingByName = room.players.find((p) => p.name === player.name);
+    if (existingByName) {
+      // Update socket id and other info
+      existingByName.id = player.id;
+      existingByName.socketId = player.socketId;
+      existingByName.isConnected = true;
+      existingByName.seat = player.seat ?? existingByName.seat;
+      await this.updateRoom(roomId, room);
+      return true;
     }
 
     room.players.push(player);
@@ -758,6 +770,9 @@ export class RoomManager {
         // Auto-ready bots, humans need to click ready
         player.isReady = player.isBot === true;
       });
+
+      // Clear the deck to ensure a fresh deck is used for the next game
+      room.deck = [];
 
       // Update room in Redis
       await this.updateRoom(roomId, room);

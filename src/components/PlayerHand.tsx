@@ -200,12 +200,6 @@ export default function PlayerHand({
         return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
       });
 
-      // Debug logging to verify sorting is working
-      console.log("🃏 PlayerHand: Sorting cards", {
-        original: hand.map((c) => `${c.rank}${c.suit.charAt(0).toUpperCase()}`),
-        sorted: sorted.map((c) => `${c.rank}${c.suit.charAt(0).toUpperCase()}`),
-      });
-
       setSortedHand(sorted);
     } else {
       setSortedHand([]);
@@ -215,11 +209,6 @@ export default function PlayerHand({
   // Force re-sort when hand length changes (additional safety)
   useEffect(() => {
     if (hand && hand.length > 0 && sortedHand.length !== hand.length) {
-      console.log("🔄 PlayerHand: Force re-sorting due to length change", {
-        handLength: hand.length,
-        sortedLength: sortedHand.length,
-      });
-
       const sorted = [...hand].sort((a, b) => {
         const suitOrder = ["spades", "hearts", "clubs", "diamonds"];
         const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
