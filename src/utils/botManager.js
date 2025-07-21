@@ -468,7 +468,8 @@ export class BotManager {
           // Invalid play for humans - throw error to be caught by caller
           if (socket) {
             player.isPlaying = false; // Clear flag on error
-            throw new Error(`You must follow the suit: ${leadSuit}`);
+            socket.emit("error", `You must follow the suit: ${leadSuit}`);
+            return;
           } else {
             // console.error(
             //   `Bot ${player.name} tried to play invalid card - must follow suit ${leadSuit}`
