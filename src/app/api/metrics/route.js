@@ -3,12 +3,11 @@ import metrics from "../../../utils/metrics.js";
 
 export async function GET() {
   try {
-    const metricsData = await metrics.getMetrics();
+    const metricsData = await metrics.register.getMetricsAsJSON();
 
-    return new NextResponse(metricsData, {
+    return NextResponse.json(metricsData, {
       status: 200,
       headers: {
-        "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         Pragma: "no-cache",
         Expires: "0",
