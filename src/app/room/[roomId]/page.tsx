@@ -27,6 +27,71 @@ import {
 // (Remove this if you add kot/draw to the main type)
 type PatchedGameState = Room["gameState"] & { kot?: number; draw?: boolean };
 
+// Preload all card images and sound files
+const CARD_IMAGE_PATHS = [
+  "2C",
+  "2D",
+  "2H",
+  "2S",
+  "3C",
+  "3D",
+  "3H",
+  "3S",
+  "4C",
+  "4D",
+  "4H",
+  "4S",
+  "5C",
+  "5D",
+  "5H",
+  "5S",
+  "6C",
+  "6D",
+  "6H",
+  "6S",
+  "7C",
+  "7D",
+  "7H",
+  "7S",
+  "8C",
+  "8D",
+  "8H",
+  "8S",
+  "9C",
+  "9D",
+  "9H",
+  "9S",
+  "10C",
+  "10D",
+  "10H",
+  "10S",
+  "JC",
+  "JD",
+  "JH",
+  "JS",
+  "QC",
+  "QD",
+  "QH",
+  "QS",
+  "KC",
+  "KD",
+  "KH",
+  "KS",
+  "AC",
+  "AD",
+  "AH",
+  "AS",
+  "back",
+].map((name) => `/cards/${name}.png`);
+
+const SOUND_PATHS = [
+  "/sound/card-deal.mp3",
+  "/sound/card-play.mp3",
+  "/sound/defeat.mp3",
+  "/sound/stack-won.mp3",
+  "/sound/victory.mp3",
+];
+
 export default function RoomPage() {
   const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
@@ -34,6 +99,59 @@ export default function RoomPage() {
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
   const playerName = searchParams.get("name") || "";
+
+  const [preloadProgress, setPreloadProgress] = useState({
+    loaded: 0,
+    total: 0,
+    done: false,
+  });
+
+  function preloadAssetsWithProgress() {
+    let loaded = 0;
+    let total = 0;
+    let completed = 0;
+    const assetList = [...CARD_IMAGE_PATHS, ...SOUND_PATHS];
+    const assetSizes: Record<string, number> = {};
+
+    // Step 1: Fetch all HEADs to get sizes
+    Promise.all(
+      assetList.map((src) =>
+        fetch(src, { method: "HEAD" })
+          .then((res) => {
+            const size = parseInt(res.headers.get("content-length") || "0", 10);
+            assetSizes[src] = size;
+            total += size;
+          })
+          .catch(() => {
+            assetSizes[src] = 0;
+          })
+      )
+    ).then(() => {
+      setPreloadProgress({ loaded: 0, total, done: false });
+      // Step 2: Actually load assets and track progress
+      assetList.forEach((src) => {
+        fetch(src)
+          .then((res) => res.blob())
+          .then((blob) => {
+            loaded += assetSizes[src] || blob.size;
+            completed++;
+            setPreloadProgress({
+              loaded,
+              total,
+              done: completed === assetList.length,
+            });
+          })
+          .catch(() => {
+            completed++;
+            setPreloadProgress({
+              loaded,
+              total,
+              done: completed === assetList.length,
+            });
+          });
+      });
+    });
+  }
 
   // Configure DnD sensors for better mobile/touch support
   const sensors = useSensors(
@@ -376,6 +494,8 @@ export default function RoomPage() {
   }, [roomId, playerName]); // Removed currentPlayer to prevent infinite loop
 
   useEffect(() => {
+    // Preload assets on first mount with progress
+    preloadAssetsWithProgress();
     let lastScrollY = window.scrollY;
     let ticking = false;
 

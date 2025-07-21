@@ -149,6 +149,25 @@ const serwist = new Serwist({
         }
       },
     },
+    // Cache all JS files (including animation and drag-and-drop libraries)
+    {
+      matcher: ({ url }) => url.pathname.match(/\.js$/) !== null,
+      handler: async ({ request }) => {
+        try {
+          const cache = await caches.open("dehla-pakad-js");
+          let response = await cache.match(request);
+          if (!response) {
+            response = await fetch(request);
+            if (response.ok) {
+              await cache.put(request, response.clone());
+            }
+          }
+          return response;
+        } catch {
+          return fetch(request);
+        }
+      },
+    },
   ],
 });
 
