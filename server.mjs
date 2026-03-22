@@ -4,8 +4,8 @@ import next from "next";
 import setupSocketIO from "./src/utils/socketServer.js";
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "localhost";
-const port = 3000;
+const hostname = "0.0.0.0";
+const port = parseInt(process.env.PORT || "3000", 10);
 
 // Prepare the Next.js app
 const app = next({ dev, hostname, port });
@@ -22,7 +22,7 @@ app.prepare().then(() => {
   setupSocketIO(server);
 
   // Start the server
-  server.listen(port, () => {
+  server.listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
 });
