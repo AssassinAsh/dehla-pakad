@@ -13,14 +13,14 @@ export async function POST(request) {
 
     // Initialize Google Sheets API
     const serviceAccountAuth = new JWT({
-      email: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY).client_email,
-      key: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY).private_key,
+      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth
+      serviceAccountAuth,
     );
     await doc.loadInfo();
 
@@ -59,7 +59,7 @@ export async function POST(request) {
         success: true,
         message: "Thank you for your feedback!",
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Error submitting feedback:", error);
@@ -70,7 +70,7 @@ export async function POST(request) {
         details:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
