@@ -10,7 +10,7 @@ import FeedbackModal from "@/components/FeedbackModal";
 import MatchmakingModal from "@/components/MatchmakingModal";
 import InstallPrompt from "@/components/InstallPrompt";
 import OfflineGame from "@/components/OfflineGame";
-import AuthButton from "@/components/AuthButton";
+
 import { useSession } from "next-auth/react";
 import { lazySocket } from "@/utils/lazySocket";
 
@@ -371,6 +371,9 @@ export default function Home() {
 
                   {/* Enhanced Typography */}
                   <div className="space-y-4">
+                    <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-300 tracking-wide">
+                      Catch the 10s
+                    </p>
                     <p className="text-sm text-dp-neon/70 font-light leading-relaxed">
                       Experience the classic 4-player trick-taking card game
                     </p>
@@ -455,15 +458,6 @@ export default function Home() {
                         </h2>
                         <div className="w-16 h-0.5 bg-gradient-to-r from-dp-neon to-dp-heart rounded-full mx-auto"></div>
                       </div>
-
-                      {/* Google Sign In */}
-                      <AuthButton
-                        onNameResolved={(name, userId) => {
-                          setPlayerName(name);
-                          localStorage.setItem("playerName", name);
-                          localStorage.setItem("userId", userId);
-                        }}
-                      />
 
                       {/* Enhanced Name Input */}
                       <div className="mb-6">
@@ -827,6 +821,9 @@ export default function Home() {
 
                   {/* Enhanced Typography */}
                   <div className="space-y-6">
+                    <p className="text-2xl lg:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-300 tracking-wide">
+                      Catch the 10s
+                    </p>
                     <p className="text-lg lg:text-xl text-dp-neon/70 font-light leading-relaxed max-w-lg">
                       Experience the classic 4-player trick-taking card game
                       with stunning visuals and seamless gameplay.
@@ -877,14 +874,6 @@ export default function Home() {
                       </h2>
                       <div className="w-16 h-0.5 bg-gradient-to-r from-dp-neon to-dp-heart rounded-full mx-auto"></div>
                     </div>
-                    {/* Google Sign In */}
-                    <AuthButton
-                      onNameResolved={(name, userId) => {
-                        setPlayerName(name);
-                        localStorage.setItem("playerName", name);
-                        localStorage.setItem("userId", userId);
-                      }}
-                    />
                     {/* Enhanced Name Input */}
                     <div className="mb-6">
                       <div className="relative">
@@ -926,7 +915,7 @@ export default function Home() {
                           </div>
                         )}
                       </div>
-                    </div>{" "}
+                    </div>
                     {/* Game Mode Cards */}
                     <div className="space-y-4">
                       {/* Online Lobby Card */}
@@ -1243,12 +1232,6 @@ export default function Home() {
             isOpen={isFeedbackModalOpen}
             onClose={() => setIsFeedbackModalOpen(false)}
           />
-
-          {/* Footer */}
-          <footer className="w-full text-center text-xs text-dp-neon/50 mt-8 mb-2">
-            © {new Date().getFullYear()} Dehla Pakad. Made with ♥ for card game
-            lovers.
-          </footer>
         </>
       )}
     </>

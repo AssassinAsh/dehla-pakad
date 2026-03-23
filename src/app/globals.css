@@ -34,6 +34,10 @@ html {
   box-sizing: border-box;
 }
 
+button, [role="button"], a {
+  cursor: pointer;
+}
+
 /* Utility classes for spacing and layout */
 .flex-center {
   display: flex;
