@@ -3,12 +3,15 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Socket } from "socket.io-client";
 import RulesModal from "@/components/RulesModal";
 import FeedbackModal from "@/components/FeedbackModal";
 import MatchmakingModal from "@/components/MatchmakingModal";
 import InstallPrompt from "@/components/InstallPrompt";
 import OfflineGame from "@/components/OfflineGame";
+import AuthButton from "@/components/AuthButton";
+import { useSession } from "next-auth/react";
 import { lazySocket } from "@/utils/lazySocket";
 
 // Component that handles search params with Suspense boundary
@@ -62,21 +65,35 @@ export default function Home() {
   >("disconnected");
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
+  const { data: session } = useSession();
 
-  // Load name from localStorage on mount
+  // When Google session resolves, override name + store userId for socket auth
   useEffect(() => {
-    const savedName = localStorage.getItem("playerName");
-    if (savedName) {
-      setPlayerName(savedName);
+    if (session?.user) {
+      const name = session.user.name ?? "";
+      setPlayerName(name);
+      localStorage.setItem("playerName", name);
+      localStorage.setItem("userId", session.user.id);
+    } else if (session === null) {
+      // Explicitly signed out — clear userId but keep the typed name
+      localStorage.removeItem("userId");
     }
-  }, []);
+  }, [session]);
 
-  // Save name to localStorage when it changes
+  // Load name from localStorage on mount (guests only — session overrides below)
   useEffect(() => {
-    if (playerName.trim()) {
+    if (!session?.user) {
+      const savedName = localStorage.getItem("playerName");
+      if (savedName) setPlayerName(savedName);
+    }
+  }, [session]);
+
+  // Save name to localStorage when it changes (guest flow)
+  useEffect(() => {
+    if (!session?.user && playerName.trim()) {
       localStorage.setItem("playerName", playerName);
     }
-  }, [playerName]);
+  }, [playerName, session]);
 
   // Preconnect socket when user starts typing their name
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,7 +140,7 @@ export default function Home() {
 
         if (roomId) {
           const roomUrl = `/room/${roomId}?name=${encodeURIComponent(
-            playerName
+            playerName,
           )}`;
 
           // Use only router.push, fallback to window.location.href only on error
@@ -173,13 +190,13 @@ export default function Home() {
         if (exists) {
           // Room exists, navigate to it with player name
           const roomUrl = `/room/${normalizedId}?name=${encodeURIComponent(
-            playerName
+            playerName,
           )}`;
           router.push(roomUrl);
         } else {
           // Room doesn't exist
           setJoinRoomError(
-            `Room "${normalizedId}" not found. Please check the room ID and try again.`
+            `Room "${normalizedId}" not found. Please check the room ID and try again.`,
           );
         }
       });
@@ -242,14 +259,14 @@ export default function Home() {
             if (response && response.status === "matched" && response.roomId) {
               router.push(
                 `/room/${response.roomId}?name=${encodeURIComponent(
-                  playerName.trim()
-                )}`
+                  playerName.trim(),
+                )}`,
               );
             } else {
               console.error("Failed to create bot game:", response);
               setIsOfflineMode(true);
             }
-          }
+          },
         );
       } catch (error) {
         console.error("Error starting bot game:", error);
@@ -375,6 +392,13 @@ export default function Home() {
                         <span className="relative z-10">Give Feedback</span>
                       </button>
 
+                      <Link
+                        href="/leaderboard"
+                        className="group relative px-6 py-2.5 border-2 border-yellow-500/30 text-yellow-400 font-semibold rounded-xl backdrop-blur-sm bg-yellow-500/5 hover:bg-yellow-500/10 hover:border-yellow-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95 text-center"
+                      >
+                        🏆 Leaderboard
+                      </Link>
+
                       <InstallPrompt />
                     </div>
                   </div>
@@ -432,6 +456,15 @@ export default function Home() {
                         <div className="w-16 h-0.5 bg-gradient-to-r from-dp-neon to-dp-heart rounded-full mx-auto"></div>
                       </div>
 
+                      {/* Google Sign In */}
+                      <AuthButton
+                        onNameResolved={(name, userId) => {
+                          setPlayerName(name);
+                          localStorage.setItem("playerName", name);
+                          localStorage.setItem("userId", userId);
+                        }}
+                      />
+
                       {/* Enhanced Name Input */}
                       <div className="mb-6">
                         <div className="relative">
@@ -439,8 +472,13 @@ export default function Home() {
                             type="text"
                             placeholder="Enter your name"
                             value={playerName}
-                            onChange={handleNameChange}
-                            className="w-full px-4 py-3 bg-[#040e16] border border-dp-cardBorder/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-dp-neon focus:border-transparent transition-all text-dp-neon placeholder-dp-neon/40 font-medium backdrop-blur-sm"
+                            onChange={session ? undefined : handleNameChange}
+                            readOnly={!!session}
+                            className={`w-full px-4 py-3 bg-[#040e16] border border-dp-cardBorder/30 rounded-xl transition-all text-dp-neon placeholder-dp-neon/40 font-medium backdrop-blur-sm focus:outline-none ${
+                              session
+                                ? "cursor-default opacity-70"
+                                : "focus:ring-2 focus:ring-dp-neon focus:border-transparent"
+                            }`}
                           />
                           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-dp-neon/5 to-transparent pointer-events-none"></div>
 
@@ -811,6 +849,13 @@ export default function Home() {
                         <span className="relative z-10">Give Feedback</span>
                       </button>
 
+                      <Link
+                        href="/leaderboard"
+                        className="group relative px-8 py-4 border-2 border-yellow-500/30 text-yellow-400 font-bold rounded-xl backdrop-blur-sm bg-yellow-500/5 hover:bg-yellow-500/10 hover:border-yellow-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95 text-center"
+                      >
+                        🏆 Leaderboard
+                      </Link>
+
                       <InstallPrompt />
                     </div>
                   </div>
@@ -832,6 +877,14 @@ export default function Home() {
                       </h2>
                       <div className="w-16 h-0.5 bg-gradient-to-r from-dp-neon to-dp-heart rounded-full mx-auto"></div>
                     </div>
+                    {/* Google Sign In */}
+                    <AuthButton
+                      onNameResolved={(name, userId) => {
+                        setPlayerName(name);
+                        localStorage.setItem("playerName", name);
+                        localStorage.setItem("userId", userId);
+                      }}
+                    />
                     {/* Enhanced Name Input */}
                     <div className="mb-6">
                       <div className="relative">
@@ -839,8 +892,13 @@ export default function Home() {
                           type="text"
                           placeholder="Enter your name"
                           value={playerName}
-                          onChange={handleNameChange}
-                          className="w-full px-4 py-3 bg-[#040e16] border border-dp-cardBorder/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-dp-neon focus:border-transparent transition-all text-dp-neon placeholder-dp-neon/40 font-medium backdrop-blur-sm"
+                          onChange={session ? undefined : handleNameChange}
+                          readOnly={!!session}
+                          className={`w-full px-4 py-3 bg-[#040e16] border border-dp-cardBorder/30 rounded-xl transition-all text-dp-neon placeholder-dp-neon/40 font-medium backdrop-blur-sm focus:outline-none ${
+                            session
+                              ? "cursor-default opacity-70"
+                              : "focus:ring-2 focus:ring-dp-neon focus:border-transparent"
+                          }`}
                         />
                         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-dp-neon/5 to-transparent pointer-events-none"></div>
 

@@ -53,10 +53,17 @@ class LazySocketManager {
 
     // Create new connection
     this.connectionPromise = new Promise((resolve, reject) => {
+      // Attach userId from localStorage so socketServer can link socket to a DB user
+      const userId =
+        typeof localStorage !== "undefined"
+          ? (localStorage.getItem("userId") ?? undefined)
+          : undefined;
+
       const socket = io({
         transports: ["websocket", "polling"], // Ensure fallback transports
         timeout: 8000, // 8 second timeout (reduced from 10)
         forceNew: false, // Reuse existing connection if available
+        auth: { userId },
       });
 
       // Add timeout for connection
