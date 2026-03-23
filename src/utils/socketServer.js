@@ -9,6 +9,116 @@ import metrics from "./metrics.js";
 // Debounce map for room updates
 const roomUpdateDebounce = new Map();
 
+function normalizePlayerName(playerName) {
+  return typeof playerName === "string" ? playerName.trim().toLowerCase() : "";
+}
+
+function sortReconnectCandidates(candidates) {
+  return [...candidates].sort((left, right) => {
+    const leftSeatScore = typeof left.seat === "number" ? 1 : 0;
+    const rightSeatScore = typeof right.seat === "number" ? 1 : 0;
+    if (leftSeatScore !== rightSeatScore) {
+      return rightSeatScore - leftSeatScore;
+    }
+
+    const leftConnectedScore = left.isConnected ? 1 : 0;
+    const rightConnectedScore = right.isConnected ? 1 : 0;
+    if (leftConnectedScore !== rightConnectedScore) {
+      return leftConnectedScore - rightConnectedScore;
+    }
+
+    const leftHandScore = Array.isArray(left.hand) ? left.hand.length : 0;
+    const rightHandScore = Array.isArray(right.hand) ? right.hand.length : 0;
+    if (leftHandScore !== rightHandScore) {
+      return rightHandScore - leftHandScore;
+    }
+
+    return 0;
+  });
+}
+
+function findPlayerInRoom(room, socket, playerName, cardId) {
+  if (!room) {
+    return null;
+  }
+
+  const bySocketId = room.players.find(
+    (player) => player.id === socket.id || player.socketId === socket.id,
+  );
+  if (bySocketId) {
+    return bySocketId;
+  }
+
+  const normalizedPlayerName = normalizePlayerName(playerName);
+  if (!normalizedPlayerName) {
+    return null;
+  }
+
+  const matchingNamePlayers = sortReconnectCandidates(
+    room.players.filter(
+      (player) => normalizePlayerName(player.name) === normalizedPlayerName,
+    ),
+  );
+
+  if (!matchingNamePlayers.length) {
+    return null;
+  }
+
+  if (cardId) {
+    const byCardOwnership = matchingNamePlayers.find((player) =>
+      Array.isArray(player.hand)
+        ? player.hand.some((card) => card.id === cardId)
+        : false,
+    );
+
+    if (byCardOwnership) {
+      return byCardOwnership;
+    }
+  }
+
+  return matchingNamePlayers[0];
+}
+
+function isRoomActivelyPlaying(room) {
+  if (!room || room.gameState?.status === "finished") {
+    return false;
+  }
+
+  if (room.gameState?.dealing || room.isCurrentlyDealing) {
+    return false;
+  }
+
+  return Boolean(
+    room.gameStarted &&
+    typeof room.currentPlayer === "number" &&
+    room.players.some(
+      (player) => Array.isArray(player.hand) && player.hand.length > 0,
+    ),
+  );
+}
+
+async function ensurePlayableRoomState(roomId, room) {
+  if (!room) {
+    return false;
+  }
+
+  if (room.gameState?.status === "in-progress") {
+    return true;
+  }
+
+  if (!isRoomActivelyPlaying(room)) {
+    return false;
+  }
+
+  room.gameState = {
+    ...room.gameState,
+    status: "in-progress",
+  };
+  await RoomManager.updateRoom(roomId, room);
+
+  return true;
+}
+
 // Optimized room update emitter with debouncing
 function emitRoomUpdate(roomId, io, delay = 50) {
   // Clear existing timeout
@@ -46,7 +156,7 @@ function dealCardsOptimized(
   io,
   deck,
   dealingOrder,
-  cardsPerPlayer
+  cardsPerPlayer,
 ) {
   return new Promise((resolve) => {
     let dealCount = 0;
@@ -91,7 +201,7 @@ function dealCardsOptimized(
             totalCardsDealt: player.hand.length,
             cardsPerPlayerThisPhase: cardsPerPlayer,
             dealingPhase: cardsPerPlayer === 5 ? "initial" : "final",
-          }
+          },
         );
       }
 
@@ -159,7 +269,7 @@ export default function setupSocketIO(server) {
     metrics.setSocketConnections(socketConnections);
 
     console.log(
-      `Socket connected for game/lobby: ${socket.id} (Total: ${socketConnections})`
+      `Socket connected for game/lobby: ${socket.id} (Total: ${socketConnections})`,
     );
 
     // Handle room creation
@@ -214,26 +324,14 @@ export default function setupSocketIO(server) {
 
         // Check if player already exists in room (reconnection case)
         // First try to find by socket ID (for quick reconnections), then by name
-        let existingPlayer = room.players.find((p) => p.id === socket.id);
-        if (!existingPlayer) {
-          // Fallback to name-based lookup for longer disconnections
-          // but only if the name is unique in the room
-          const playersWithSameName = room.players.filter(
-            (p) => p.name === playerName
-          );
-          if (playersWithSameName.length === 1) {
-            existingPlayer = playersWithSameName[0];
-          }
-          // If multiple players have the same name, we can't reliably reconnect by name
-          // so we'll treat this as a new player joining
-        }
+        let existingPlayer = findPlayerInRoom(room, socket, playerName);
 
         if (existingPlayer) {
           // If player exists and is trying to select a seat
           if (seatNumber !== null && existingPlayer.seat !== seatNumber) {
             // Check if the new seat is available
             const seatTaken = room.players.some(
-              (p) => p.seat === seatNumber && p.id !== existingPlayer.id
+              (p) => p.seat === seatNumber && p.id !== existingPlayer.id,
             );
             if (seatTaken) {
               if (typeof callback === "function") callback(false);
@@ -287,7 +385,7 @@ export default function setupSocketIO(server) {
               seat: player.seat,
               totalPlayers: room.players.length,
               isRoomFull: room.players.length === 4,
-            }
+            },
           );
 
           socket.join(roomId);
@@ -320,7 +418,7 @@ export default function setupSocketIO(server) {
               seat: player.seat,
               totalPlayers: 1, // Will be updated by room update
               isRoomFull: false, // Will be determined by room manager
-            }
+            },
           );
 
           socket.join(roomId);
@@ -390,7 +488,7 @@ export default function setupSocketIO(server) {
 
         const result = await MatchmakingQueue.addPlayerToQueue(
           player,
-          preferences
+          preferences,
         );
 
         if (typeof callback === "function") {
@@ -464,6 +562,7 @@ export default function setupSocketIO(server) {
         // New format: { roomId, cardId, actionId }
         roomId = data.roomId;
         actualCardId = data.cardId;
+        actualPlayerName = data.playerName;
         actionId = data.actionId;
         // Need to find player name from socket/room
       } else {
@@ -475,18 +574,17 @@ export default function setupSocketIO(server) {
 
       try {
         const room = await RoomManager.getRoom(roomId);
-        if (!room || room.gameState?.status !== "in-progress") {
+        if (!room) {
           return socket.emit("error", "Cannot play card: game not in progress");
         }
 
         // Find player - first try by name, then by socket ID
-        let player;
-        if (actualPlayerName) {
-          player = room.players.find((p) => p.name === actualPlayerName);
-        } else {
-          // For new format, find by socket ID
-          player = room.players.find((p) => p.id === socket.id);
-        }
+        const player = findPlayerInRoom(
+          room,
+          socket,
+          actualPlayerName,
+          actualCardId,
+        );
 
         if (!player) {
           return socket.emit("error", "Player not found.");
@@ -495,6 +593,14 @@ export default function setupSocketIO(server) {
         // Optional: Update socket.id if it's different (handles reconnection)
         if (player.id !== socket.id) {
           player.id = socket.id;
+          player.socketId = socket.id;
+          player.isConnected = true;
+          await RoomManager.updateRoom(roomId, room);
+        }
+
+        const playableState = await ensurePlayableRoomState(roomId, room);
+        if (!playableState) {
+          return socket.emit("error", "Cannot play card: game not in progress");
         }
 
         if (room.currentPlayer !== player.seat) {
@@ -505,7 +611,7 @@ export default function setupSocketIO(server) {
         if (room.gameState?.isCollectingStack) {
           return socket.emit(
             "error",
-            "Please wait while the stack is being collected."
+            "Please wait while the stack is being collected.",
           );
         }
 
@@ -539,7 +645,7 @@ export default function setupSocketIO(server) {
             cardIndex,
             roomId,
             io,
-            socket
+            socket,
           );
 
           // Send success response to client for Phase 4 validation (only if no error was thrown)
@@ -774,7 +880,7 @@ export default function setupSocketIO(server) {
         const result = await RoomManager.handleReplayRequest(
           roomId,
           socket.id, // Use socket ID instead of player name
-          io
+          io,
         );
 
         // Send feedback to the requesting player
@@ -834,11 +940,27 @@ export default function setupSocketIO(server) {
       metrics.setSocketConnections(socketConnections);
 
       console.log(
-        `Socket disconnected from game/lobby: ${socket.id} (Total: ${socketConnections})`
+        `Socket disconnected from game/lobby: ${socket.id} (Total: ${socketConnections})`,
       );
 
       // Clean up from matchmaking queue
       MatchmakingQueue.cleanupDisconnectedPlayer(socket.id);
+
+      void (async () => {
+        const room = await RoomManager.getRoomByPlayerId(socket.id);
+        if (!room) {
+          return;
+        }
+
+        const player = room.players.find((p) => p.id === socket.id);
+        if (!player) {
+          return;
+        }
+
+        player.isConnected = false;
+        await RoomManager.updateRoom(room.id, room);
+        emitRoomUpdate(room.id, io);
+      })();
 
       // Give a grace period for reconnection, e.g., 5 seconds
       setTimeout(async () => {
@@ -860,7 +982,7 @@ export default function setupSocketIO(server) {
                 seat: player.seat,
                 isHost: isHost,
                 reason: "disconnectTimeout",
-              }
+              },
             );
 
             await RoomManager.removePlayerFromRoom(room.id, socket.id);

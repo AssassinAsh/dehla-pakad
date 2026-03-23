@@ -92,6 +92,47 @@ const SOUND_PATHS = [
   "/sound/victory.mp3",
 ];
 
+const normalizePlayerName = (value: string | null | undefined) =>
+  value?.trim().toLowerCase() ?? "";
+
+const selectCurrentPlayer = (
+  players: Player[] | undefined,
+  socketId: string | undefined,
+  playerName: string,
+) => {
+  if (!players?.length) {
+    return null;
+  }
+
+  const playerBySocket = players.find((player) => player.id === socketId);
+  if (playerBySocket) {
+    return playerBySocket;
+  }
+
+  const normalizedPlayerName = normalizePlayerName(playerName);
+  if (!normalizedPlayerName) {
+    return null;
+  }
+
+  return (
+    [...players]
+      .filter(
+        (player) => normalizePlayerName(player.name) === normalizedPlayerName,
+      )
+      .sort((left, right) => {
+        const leftSeatScore = typeof left.seat === "number" ? 1 : 0;
+        const rightSeatScore = typeof right.seat === "number" ? 1 : 0;
+        if (leftSeatScore !== rightSeatScore) {
+          return rightSeatScore - leftSeatScore;
+        }
+
+        const leftHandScore = left.hand?.length ?? 0;
+        const rightHandScore = right.hand?.length ?? 0;
+        return rightHandScore - leftHandScore;
+      })[0] ?? null
+  );
+};
+
 export default function RoomPage() {
   const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
@@ -124,8 +165,8 @@ export default function RoomPage() {
           })
           .catch(() => {
             assetSizes[src] = 0;
-          })
-      )
+          }),
+      ),
     ).then(() => {
       setPreloadProgress({ loaded: 0, total, done: false });
       // Step 2: Actually load assets and track progress
@@ -165,7 +206,7 @@ export default function RoomPage() {
         delay: 150, // Short delay for touch activation (reduced for better responsiveness)
         tolerance: 5, // Tolerance for movement
       },
-    })
+    }),
   );
 
   const [room, setRoom] = useState<Room | null>(null);
@@ -232,12 +273,12 @@ export default function RoomPage() {
         // If socket is already connected, immediately run the logic
         if (newSocket.connected) {
           console.log(
-            "🔄 Room page: Socket already connected, handling immediately"
+            "🔄 Room page: Socket already connected, handling immediately",
           );
           handleConnectedSocket(newSocket);
         } else {
           console.log(
-            "⏳ Room page: Socket not connected, waiting for connect event"
+            "⏳ Room page: Socket not connected, waiting for connect event",
           );
           // Only add connect listener if not already connected
           newSocket.once("connect", () => {
@@ -285,10 +326,10 @@ export default function RoomPage() {
                       });
                       if (!success) {
                         console.log(
-                          "Auto-join failed, player might need to select a seat"
+                          "Auto-join failed, player might need to select a seat",
                         );
                       }
-                    }
+                    },
                   );
                 }
               }
@@ -351,8 +392,12 @@ export default function RoomPage() {
           });
 
           // If we're already in the player list, update our current player
-          // Use socket ID for identification to handle duplicate names
-          const me = updated.players?.find((p) => p.id === newSocket.id);
+          // Prefer socket ID, but fall back to player name during reconnects.
+          const me = selectCurrentPlayer(
+            updated.players,
+            newSocket.id,
+            playerName,
+          );
           if (me) {
             setCurrentPlayer(me);
           }
@@ -375,7 +420,7 @@ export default function RoomPage() {
               setRoom((currentRoom) => {
                 if (currentRoom && newSocket.id) {
                   const currentPlayerInRoom = currentRoom.players?.find(
-                    (p: Player) => p.id === newSocket.id
+                    (p: Player) => p.id === newSocket.id,
                   );
                   const mySeat = currentPlayerInRoom?.seat;
                   const myTeam =
@@ -397,7 +442,7 @@ export default function RoomPage() {
                 return currentRoom; // Return unchanged room
               });
             }
-          }
+          },
         );
 
         // Handle replay events
@@ -412,7 +457,7 @@ export default function RoomPage() {
           (data: { requester: string; message: string }) => {
             // Show info notification that someone requested a replay
             showInfo(data.message);
-          }
+          },
         );
 
         newSocket.on(
@@ -425,7 +470,7 @@ export default function RoomPage() {
                 window.location.href = "/";
               }, 2000);
             }
-          }
+          },
         );
 
         newSocket.on(
@@ -458,7 +503,7 @@ export default function RoomPage() {
                 showError(response.message);
               }
             }
-          }
+          },
         );
 
         // Handle admin/host leaving
@@ -533,7 +578,7 @@ export default function RoomPage() {
         if (!success) {
           showError("Failed to join seat. Please try again.");
         }
-      }
+      },
     );
   };
 
@@ -566,7 +611,12 @@ export default function RoomPage() {
     // Set playing flag to prevent multiple rapid plays
     setIsPlayingCard(true);
 
-    socketRef.current.emit("playCard", roomId, card.id, playerName);
+    socketRef.current.emit("playCard", {
+      roomId,
+      cardId: card.id,
+      playerName,
+      actionId: `${roomId}:${card.id}:${Date.now()}`,
+    });
 
     // Clear the flag after a short delay to allow the server to process
     setTimeout(() => {
@@ -610,7 +660,7 @@ export default function RoomPage() {
     if (nameInput.trim()) {
       setError(null); // Clear any previous error
       router.replace(
-        `/room/${roomId}?name=${encodeURIComponent(nameInput.trim())}`
+        `/room/${roomId}?name=${encodeURIComponent(nameInput.trim())}`,
       );
     }
   };
